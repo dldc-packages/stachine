@@ -1,0 +1,52 @@
+{
+  "name": "package-template",
+  "version": "0.0.0",
+  "description": "",
+  "keywords": [],
+  "homepage": "https://github.com/etienne-dldc/package-template#readme",
+  "bugs": {
+    "url": "https://github.com/etienne-dldc/package-template/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/etienne-dldc/package-template.git"
+  },
+  "license": "MIT",
+  "author": "Etienne Dldc <e.deladonchamps@gmail.com>",
+  "main": "dist/index.js",
+  "module": "dist/package-template.esm.js",
+  "typings": "dist/index.d.ts",
+  "directories": {
+    "example": "examples",
+    "test": "tests"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsdx build && denoify",
+    "codecov": "codecov",
+    "preinstall": "npx only-allow pnpm",
+    "pub": "yarn build && np",
+    "start": "tsdx watch",
+    "test": "tsdx test --coverage"
+  },
+  "devDependencies": {
+    "@types/jest": "^26.0.15",
+    "codecov": "^3.8.1",
+    "core-js": "3.7.0",
+    "denoify": "^0.6.1",
+    "np": "^7.0.0",
+    "tsdx": "^0.14.1",
+    "tslib": "^2.0.3",
+    "typescript": "^4.0.5"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
+  "np": {
+    "yarn": false,
+    "cleanup": false
+  }
+}
