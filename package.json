@@ -1,20 +1,23 @@
 {
-  "name": "package-template",
+  "name": "stachine",
   "version": "0.0.0",
-  "description": "",
-  "keywords": [],
-  "homepage": "https://github.com/etienne-dldc/package-template#readme",
+  "description": "A TypeScript state machine with events and effects",
+  "keywords": [
+    "state-machine",
+    "typescript"
+  ],
+  "homepage": "https://github.com/etienne-dldc/stachine#readme",
   "bugs": {
-    "url": "https://github.com/etienne-dldc/package-template/issues"
+    "url": "https://github.com/etienne-dldc/stachine/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+ssh://git@github.com/etienne-dldc/package-template.git"
+    "url": "git+ssh://git@github.com/etienne-dldc/stachine.git"
   },
   "license": "MIT",
   "author": "Etienne Dldc <e.deladonchamps@gmail.com>",
   "main": "dist/index.js",
-  "module": "dist/package-template.esm.js",
+  "module": "dist/stachine.esm.js",
   "typings": "dist/index.d.ts",
   "directories": {
     "example": "examples",
@@ -29,7 +32,8 @@
     "preinstall": "npx only-allow pnpm",
     "pub": "yarn build && np",
     "start": "tsdx watch",
-    "test": "tsdx test --coverage"
+    "test": "tsdx test --coverage",
+    "test:watch": "tsdx test --watch --coverage"
   },
   "devDependencies": {
     "@types/jest": "^26.0.15",
@@ -48,5 +52,8 @@
   "np": {
     "yarn": false,
     "cleanup": false
+  },
+  "dependencies": {
+    "suub": "^3.1.1"
   }
 }

@@ -3,6 +3,7 @@
   "include": ["src", "types"],
   "exclude": ["deno_dist"],
   "compilerOptions": {
+    "target": "ES5",
     "module": "esnext",
     "lib": ["dom", "esnext"],
     // necessary for denoify

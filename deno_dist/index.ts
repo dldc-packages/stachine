@@ -1,4 +1,4 @@
-import { Subscription } from 'suub';
+import { Subscription } from 'https://raw.githubusercontent.com/etienne-dldc/suub/v3.1.1/deno_dist/mod.ts';
 
 export type UnionBase = { type: string };
 export type EffectCleanup = () => void;
