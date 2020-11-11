@@ -49,17 +49,17 @@ test('simple machine', () => {
     }
   );
 
-  expect(machine.state).toEqual({ type: 'Home' });
+  expect(machine.getState()).toEqual({ type: 'Home' });
   machine.emit({ type: 'Wake' });
-  expect(machine.state).toEqual({ type: 'Home' });
+  expect(machine.getState()).toEqual({ type: 'Home' });
   machine.emit({ type: 'Commute' });
-  expect(machine.state).toEqual({ type: 'Work' });
+  expect(machine.getState()).toEqual({ type: 'Work' });
   machine.emit({ type: 'Commute' });
-  expect(machine.state).toEqual({ type: 'Home' });
+  expect(machine.getState()).toEqual({ type: 'Home' });
   machine.emit({ type: 'Sleep' });
-  expect(machine.state).toEqual({ type: 'Bed' });
+  expect(machine.getState()).toEqual({ type: 'Bed' });
   machine.emit({ type: 'Sleep' });
-  expect(machine.state).toEqual({ type: 'Bed' });
+  expect(machine.getState()).toEqual({ type: 'Bed' });
 });
 
 test('simple machine with listener', () => {
@@ -84,7 +84,7 @@ test('simple machine with listener', () => {
     }
   );
 
-  expect(machine.state).toEqual({ type: 'Home' });
+  expect(machine.getState()).toEqual({ type: 'Home' });
   const callback = jest.fn();
   machine.subscribe(callback);
   machine.emit({ type: 'Commute' });
