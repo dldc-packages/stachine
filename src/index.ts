@@ -62,13 +62,11 @@ export class StateMachine<States extends UnionBase, Events extends UnionBase> {
     };
   }
 
-  getState() {
-    return this.currentState;
-  }
+  getState = () => this.currentState;
 
   subscribe = this.subscription.subscribe;
 
-  emit(event: Events) {
+  emit = (event: Events) => {
     const handler = this.resolveHandler(this.currentState.type, event.type);
     if (!handler) {
       if (this.options.debug) {
@@ -95,7 +93,7 @@ export class StateMachine<States extends UnionBase, Events extends UnionBase> {
     this.currentState = nextState;
     this.runEffects(nextEffects);
     this.subscription.emit(this.currentState);
-  }
+  };
 
   private effect: RegisterEffect<Events> = (effect) => {
     if (this.effectCollector === null) {
