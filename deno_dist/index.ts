@@ -62,7 +62,7 @@ export class StateMachine<States extends UnionBase, Events extends UnionBase> {
     };
   }
 
-  get state() {
+  getState() {
     return this.currentState;
   }
 
