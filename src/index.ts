@@ -36,29 +36,6 @@ const EventCtx = Miid.createContext<unknown>(null);
 export const StateConsumer = StateCtx.Consumer;
 export const EventConsumer = EventCtx.Consumer;
 
-export class StateWithEffect<States extends UnionBase, Events extends UnionBase> {
-  readonly state: States;
-  readonly effect: Effect<Events>;
-
-  constructor(state: States, effect: Effect<Events>) {
-    this.state = state;
-    this.effect = effect;
-  }
-}
-
-export function withEffect<States extends UnionBase, Events extends UnionBase>(
-  state: States,
-  effect: Effect<Events>
-) {
-  return new StateWithEffect(state, effect);
-}
-
-export function compose<States extends UnionBase, Events extends UnionBase>(
-  ...middlewares: Middlewares<States, Events>
-) {
-  return Miid.compose(...middlewares);
-}
-
 export class StateMachine<States extends UnionBase, Events extends UnionBase> {
   private readonly middleware: Middleware<States, Events>;
   private readonly subscription = Subscription<States>() as Subscription<States>;
@@ -68,14 +45,14 @@ export class StateMachine<States extends UnionBase, Events extends UnionBase> {
 
   static typed<States extends UnionBase, Events extends UnionBase>() {
     return {
+      StateConsumer: StateConsumer as Miid.ContextConsumer<States, true>,
+      EventConsumer: EventConsumer as Miid.ContextConsumer<Events, true>,
       create: (
         initialState: States | InitialStateFn<States, Events>,
         middleware: Middleware<States, Events>,
         options?: StateMachineOptions
       ) => new StateMachine<States, Events>(initialState, middleware, options),
       compose: (...middlewares: Array<Middleware<States, Events>>) => compose(...middlewares),
-      StateConsumer: StateConsumer as Miid.ContextConsumer<States, true>,
-      EventConsumer: EventConsumer as Miid.ContextConsumer<Events, true>,
       handleState<S extends States['type']>(
         state: S | ReadonlyArray<S>,
         handler: Handler<States, Events, S, Events['type']>
@@ -99,6 +76,9 @@ export class StateMachine<States extends UnionBase, Events extends UnionBase> {
         handler: Handler<States, Events, States['type'], Events['type']>
       ): Middleware<States, Events> {
         return handleAny(handler);
+      },
+      withEffect(state: States, effect: Effect<Events>): StateWithEffect<States, Events> {
+        return withEffect(state, effect);
       },
     };
   }
@@ -184,6 +164,29 @@ export class StateMachine<States extends UnionBase, Events extends UnionBase> {
       cleanedup = true;
     };
   }
+}
+
+export class StateWithEffect<States extends UnionBase, Events extends UnionBase> {
+  readonly state: States;
+  readonly effect: Effect<Events>;
+
+  constructor(state: States, effect: Effect<Events>) {
+    this.state = state;
+    this.effect = effect;
+  }
+}
+
+export function withEffect<States extends UnionBase, Events extends UnionBase>(
+  state: States,
+  effect: Effect<Events>
+): StateWithEffect<States, Events> {
+  return new StateWithEffect(state, effect);
+}
+
+export function compose<States extends UnionBase, Events extends UnionBase>(
+  ...middlewares: Middlewares<States, Events>
+) {
+  return Miid.compose(...middlewares);
 }
 
 export function handleState<
