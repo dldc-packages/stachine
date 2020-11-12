@@ -1,52 +1,50 @@
-import { StateMachine } from '../src';
+import { compose, StateMachine } from '../src';
 
 test('create a state machine without arre', () => {
   type States = { type: 'Init' };
   type Events = { type: 'Hey' };
 
-  expect(() => new StateMachine<States, Events>({ type: 'Init' }, {})).not.toThrow();
+  const typed = StateMachine.typed<States, Events>();
+
+  expect(() => typed.create({ type: 'Init' }, compose())).not.toThrow();
 });
 
-test('warn if duplicate handler', () => {
-  const spy = jest.spyOn(console, 'warn').mockImplementation();
+// test('warn if duplicate handler', () => {
+//   const spy = jest.spyOn(console, 'warn').mockImplementation();
 
-  type States = { type: 'Init' };
-  type Events = { type: 'Hey' };
+//   type States = { type: 'Init' };
+//   type Events = { type: 'Hey' };
 
-  new StateMachine<States, Events>(
-    { type: 'Init' },
-    {
-      onEvent: { Hey: { Init: () => null } },
-      onState: { Init: { Hey: () => null } },
-    }
-  );
+//   const typed = StateMachine.typed<States, Events>();
 
-  expect(console.warn).toHaveBeenCalledWith(
-    `Duplicate handler: Hey->Init is already handled by Init->Hey !`
-  );
-  spy.mockRestore();
-});
+//   new StateMachine<States, Events>(
+//     { type: 'Init' },
+//     {
+//       onEvent: { Hey: { Init: () => null } },
+//       onState: { Init: { Hey: () => null } },
+//     }
+//   );
+
+//   expect(console.warn).toHaveBeenCalledWith(
+//     `Duplicate handler: Hey->Init is already handled by Init->Hey !`
+//   );
+//   spy.mockRestore();
+// });
 
 test('simple machine', () => {
   type States = { type: 'Home' } | { type: 'Bed' } | { type: 'Work' };
   type Events = { type: 'Commute' } | { type: 'Wake' } | { type: 'Sleep' };
 
-  const machine = new StateMachine<States, Events>(
+  const typed = StateMachine.typed<States, Events>();
+
+  const machine = typed.create(
     { type: 'Home' },
-    {
-      onEvent: {
-        Commute: {
-          Home: () => ({ type: 'Work' }),
-          Work: () => ({ type: 'Home' }),
-        },
-        Sleep: {
-          Home: () => ({ type: 'Bed' }),
-        },
-        Wake: {
-          Bed: () => ({ type: 'Home' }),
-        },
-      },
-    }
+    typed.compose(
+      typed.handle('Home', 'Commute', () => ({ type: 'Work' })),
+      typed.handle('Home', 'Sleep', () => ({ type: 'Bed' })),
+      typed.handle('Work', 'Commute', () => ({ type: 'Home' })),
+      typed.handle('Bed', 'Wake', () => ({ type: 'Home' }))
+    )
   );
 
   expect(machine.getState()).toEqual({ type: 'Home' });
@@ -66,22 +64,16 @@ test('simple machine with listener', () => {
   type States = { type: 'Home' } | { type: 'Bed' } | { type: 'Work' };
   type Events = { type: 'Commute' } | { type: 'Wake' } | { type: 'Sleep' };
 
-  const machine = new StateMachine<States, Events>(
+  const typed = StateMachine.typed<States, Events>();
+
+  const machine = typed.create(
     { type: 'Home' },
-    {
-      onEvent: {
-        Commute: {
-          Home: () => ({ type: 'Work' }),
-          Work: () => ({ type: 'Home' }),
-        },
-        Sleep: {
-          Home: () => ({ type: 'Bed' }),
-        },
-        Wake: {
-          Bed: () => ({ type: 'Home' }),
-        },
-      },
-    }
+    typed.compose(
+      typed.handle('Home', 'Commute', () => ({ type: 'Work' })),
+      typed.handle('Home', 'Sleep', () => ({ type: 'Bed' })),
+      typed.handle('Work', 'Commute', () => ({ type: 'Home' })),
+      typed.handle('Bed', 'Wake', () => ({ type: 'Home' }))
+    )
   );
 
   expect(machine.getState()).toEqual({ type: 'Home' });
@@ -98,26 +90,23 @@ test('simple machine with listener', () => {
 test('simple machine with initialState function', () => {
   type States = { type: 'Home' } | { type: 'Bed' } | { type: 'Work' };
   type Events = { type: 'Commute' } | { type: 'Wake' } | { type: 'Sleep' };
+  const typed = StateMachine.typed<States, Events>();
 
-  const machine = new StateMachine<States, Events>(() => ({ type: 'Home' }), {
-    onEvent: {
-      Commute: {
-        Home: () => ({ type: 'Work' }),
-        Work: () => ({ type: 'Home' }),
-      },
-      Sleep: {
-        Home: () => ({ type: 'Bed' }),
-      },
-      Wake: {
-        Bed: () => ({ type: 'Home' }),
-      },
-    },
-  });
+  const machine = typed.create(
+    () => ({ type: 'Home' }),
+    typed.compose(
+      typed.handle('Home', 'Commute', () => ({ type: 'Work' })),
+      typed.handle('Home', 'Sleep', () => ({ type: 'Bed' })),
+      typed.handle('Work', 'Commute', () => ({ type: 'Home' })),
+      typed.handle('Bed', 'Wake', () => ({ type: 'Home' }))
+    )
+  );
 
   expect(machine.getState()).toEqual({ type: 'Home' });
   const callback = jest.fn();
   machine.subscribe(callback);
   machine.emit({ type: 'Commute' });
+  expect(machine.getState()).toEqual({ type: 'Work' });
   expect(callback).toHaveBeenCalledTimes(1);
   expect(callback).toHaveBeenCalledWith({ type: 'Work' });
   callback.mockClear();

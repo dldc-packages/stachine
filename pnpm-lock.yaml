@@ -1,4 +1,5 @@
 dependencies:
+  miid: 4.0.0-0
   suub: 3.1.1
 devDependencies:
   '@types/jest': 26.0.15
@@ -5695,6 +5696,10 @@ packages:
       node: '>=8'
     resolution:
       integrity: sha512-y7FpHSbMUMoyPbYUSzO6PaZ6FyRnQOpHuKwbo1G+Knck95XVU4QAiKdGEnj5wwoS7PlOgthX/09u5iFJ+aYf5Q==
+  /miid/4.0.0-0:
+    dev: false
+    resolution:
+      integrity: sha512-qgsiXJ1EgxmREg8JCqZXdUYWWOghaK+bCLmbAA3deZ8nEr7UtU7OlD/ZzB+hi51XfF0N98SfxCeQ4Y596mvANA==
   /mime-db/1.44.0:
     dev: true
     engines:
@@ -8378,6 +8383,7 @@ specifiers:
   codecov: ^3.8.1
   core-js: 3.7.0
   denoify: ^0.6.1
+  miid: ^4.0.0-0
   np: ^7.0.0
   suub: ^3.1.1
   tsdx: ^0.14.1

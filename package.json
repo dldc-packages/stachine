@@ -54,6 +54,7 @@
     "cleanup": false
   },
   "dependencies": {
+    "miid": "^4.0.0-0",
     "suub": "^3.1.1"
   }
 }

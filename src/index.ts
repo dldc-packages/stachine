@@ -1,15 +1,24 @@
-import { Subscription } from 'suub';
+import { Subscription, SubscribeMethod } from 'suub';
+import * as Miid from 'miid';
 
+export type Result<States extends UnionBase, Events extends UnionBase> =
+  | States
+  | null
+  | StateWithEffect<States, Events>;
+export type Middleware<States extends UnionBase, Events extends UnionBase> = Miid.Middleware<
+  Result<States, Events>
+>;
+export type Middlewares<States extends UnionBase, Events extends UnionBase> = Miid.Middlewares<
+  Result<States, Events>
+>;
 export type UnionBase = { type: string };
 export type EffectCleanup = () => void;
 export type EmitEvents<Events extends UnionBase> = (event: Events) => void;
 export type Effect<Events extends UnionBase> = (emit: EmitEvents<Events>) => EffectCleanup | void;
-export type RegisterEffect<Events extends UnionBase> = (effect: Effect<Events>) => void;
-export type InitialStateFn<States extends UnionBase, Events extends UnionBase> = (
-  effect: RegisterEffect<Events>
-) => States;
-
-export type EventHandler<
+export type InitialStateFn<States extends UnionBase, Events extends UnionBase> = () =>
+  | States
+  | StateWithEffect<States, Events>;
+export type Handler<
   States extends UnionBase,
   Events extends UnionBase,
   S extends States['type'],
@@ -17,73 +26,108 @@ export type EventHandler<
 > = (
   event: Extract<Events, { type: E }>,
   state: Extract<States, { type: S }>,
-  effect: RegisterEffect<Events>
-) => States | null;
+  next: () => Result<States, Events>
+) => Result<States, Events>;
+export type StateMachineOptions = { debug?: boolean };
 
-// The most precise gets the priority
-export type MachineDef<States extends UnionBase, Events extends UnionBase> = {
-  onState?: {
-    [S in States['type']]?:
-      | ({
-          [E in Events['type']]?: EventHandler<States, Events, S, E>;
-        } & { any?: EventHandler<States, Events, S, Events['type']> })
-      | EventHandler<States, Events, S, Events['type']>;
-  };
-  onEvent?: {
-    [E in Events['type']]?:
-      | ({
-          [S in States['type']]?: EventHandler<States, Events, S, E>;
-        } & { any?: EventHandler<States, Events, States['type'], E> })
-      | EventHandler<States, Events, States['type'], E>;
-  };
-  onAny?: EventHandler<States, Events, States['type'], Events['type']>;
-};
-type MachineDefRootKeys = keyof MachineDef<any, any>;
+const StateCtx = Miid.createContext<unknown>(null);
+const EventCtx = Miid.createContext<unknown>(null);
 
-export type StateMachineOptions = {
-  debug?: boolean;
-};
+export const StateConsumer = StateCtx.Consumer;
+export const EventConsumer = EventCtx.Consumer;
+
+export class StateWithEffect<States extends UnionBase, Events extends UnionBase> {
+  readonly state: States;
+  readonly effect: Effect<Events>;
+
+  constructor(state: States, effect: Effect<Events>) {
+    this.state = state;
+    this.effect = effect;
+  }
+}
+
+export function withEffect<States extends UnionBase, Events extends UnionBase>(
+  state: States,
+  effect: Effect<Events>
+) {
+  return new StateWithEffect(state, effect);
+}
+
+export function compose<States extends UnionBase, Events extends UnionBase>(
+  ...middlewares: Middlewares<States, Events>
+) {
+  return Miid.compose(...middlewares);
+}
 
 export class StateMachine<States extends UnionBase, Events extends UnionBase> {
-  private readonly machineDefinition: MachineDef<States, Events>;
+  private readonly middleware: Middleware<States, Events>;
   private readonly subscription = Subscription<States>() as Subscription<States>;
   private readonly options: Required<StateMachineOptions>;
+  private currentCleanup: EffectCleanup | null = null;
   private currentState!: States;
-  private effectCollector: Array<() => EffectCleanup> | null = null;
-  private currentEffects: Array<EffectCleanup> = [];
+
+  static typed<States extends UnionBase, Events extends UnionBase>() {
+    return {
+      create: (
+        initialState: States | InitialStateFn<States, Events>,
+        middleware: Middleware<States, Events>,
+        options?: StateMachineOptions
+      ) => new StateMachine<States, Events>(initialState, middleware, options),
+      compose: (...middlewares: Array<Middleware<States, Events>>) => compose(...middlewares),
+      StateConsumer: StateConsumer as Miid.ContextConsumer<States, true>,
+      EventConsumer: EventConsumer as Miid.ContextConsumer<Events, true>,
+      handleState<S extends States['type']>(
+        state: S | ReadonlyArray<S>,
+        handler: Handler<States, Events, S, Events['type']>
+      ): Middleware<States, Events> {
+        return handleState(state, handler);
+      },
+      handleEvent<E extends Events['type']>(
+        event: E | ReadonlyArray<E>,
+        handler: Handler<States, Events, States['type'], E>
+      ): Middleware<States, Events> {
+        return handleEvent(event, handler);
+      },
+      handle<S extends States['type'], E extends Events['type']>(
+        state: S | ReadonlyArray<S>,
+        event: E | ReadonlyArray<E>,
+        handler: Handler<States, Events, S, E>
+      ): Middleware<States, Events> {
+        return handle(state, event, handler);
+      },
+      handleAny(
+        handler: Handler<States, Events, States['type'], Events['type']>
+      ): Middleware<States, Events> {
+        return handleAny(handler);
+      },
+    };
+  }
 
   constructor(
     initialState: States | InitialStateFn<States, Events>,
-    machineDefinition: MachineDef<States, Events>,
+    middleware: Middleware<States, Events>,
     options: StateMachineOptions = {}
   ) {
-    this.machineDefinition = StateMachine.checkDef(machineDefinition);
+    this.middleware = middleware;
     this.options = {
       debug: false,
       ...options,
     };
     const initialStateFn = typeof initialState === 'function' ? initialState : () => initialState;
-    this.runWithEffect(() => initialStateFn(this.effect));
+    this.handleResult(initialStateFn());
   }
 
   getState = () => this.currentState;
 
-  subscribe = this.subscription.subscribe;
+  subscribe: SubscribeMethod<States> = this.subscription.subscribe;
 
   emit = (event: Events) => {
-    const handler = this.resolveHandler(this.currentState.type, event.type);
-    if (!handler) {
-      if (this.options.debug) {
-        console.info(
-          `[StateMachine] Event ${event.type} on state ${this.currentState.type} has been ignored because no transition is defined`
-        );
-      }
-      return;
-    }
-    const nextState = this.runWithEffect(() =>
-      handler(event as any, this.currentState as any, this.effect)
+    const result = this.middleware(
+      Miid.ContextStack.createFrom(StateCtx.Provider(this.currentState), EventCtx.Provider(event)),
+      () => null
     );
-    if (nextState === null) {
+
+    if (result === null) {
       // do nothing
       if (this.options.debug) {
         console.info(
@@ -92,153 +136,122 @@ export class StateMachine<States extends UnionBase, Events extends UnionBase> {
       }
       return;
     }
-    this.subscription.emit(this.currentState);
-  };
-
-  private readonly effect: RegisterEffect<Events> = (effect) => {
-    if (this.effectCollector === null) {
-      throw new Error('Cannot register effect outside of transition');
+    const stateChanged = this.handleResult(result);
+    if (stateChanged) {
+      this.subscription.emit(this.currentState);
     }
-    let cleanup = false;
-    this.effectCollector.push(() => {
-      const emit = (event: Events) => {
-        if (cleanup) {
-          throw new Error(
-            'Cannot emit from cleaned up effect, did you forget a cleanup function ?'
-          );
-        }
-        this.emit(event);
-      };
-      const effectCleanup = effect(emit);
-      return () => {
-        cleanup = true;
-        if (effectCleanup) {
-          effectCleanup();
-        }
-      };
-    });
   };
 
-  private runWithEffect(exec: () => States | null): States | null {
-    this.effectCollector = [];
-    const nextState = exec();
-    const nextEffects = this.effectCollector;
-    this.effectCollector = null;
-    if (nextState === null) {
-      return null;
+  private handleResult(result: Result<States, Events>): boolean {
+    if (result === null) {
+      return false;
     }
     this.cleanup();
-    this.currentState = nextState;
-    this.runEffects(nextEffects);
-    return nextState;
+    const nextState = result instanceof StateWithEffect ? result.state : result;
+    const nextEffect = result instanceof StateWithEffect ? result.effect : null;
+    const stateChanged = this.currentState !== nextState;
+    if (stateChanged) {
+      this.currentState = nextState;
+    }
+    if (nextEffect) {
+      this.runEffect(nextEffect);
+    }
+    return true;
   }
 
   private cleanup() {
-    this.currentEffects.forEach((cleanup) => {
-      cleanup();
+    if (this.currentCleanup) {
+      this.currentCleanup();
+    }
+    this.currentCleanup = null;
+  }
+
+  private runEffect(effect: Effect<Events>) {
+    if (this.currentCleanup) {
+      throw new Error(`Effect not cleaned up !!`);
+    }
+    let cleanedup = false;
+    const cleanup = effect((event) => {
+      if (cleanedup) {
+        throw new Error('Cannot emit from cleaned up effect, did you forget a cleanup function ?');
+      }
+      return this.emit(event);
     });
-    // ensure not called twice
-    this.currentEffects = [];
+    this.currentCleanup = () => {
+      if (cleanup) {
+        cleanup();
+      }
+      cleanedup = true;
+    };
   }
+}
 
-  private runEffects(effects: Array<() => EffectCleanup>) {
-    this.currentEffects = effects.map((effect) => effect());
-  }
+export function handleState<
+  States extends UnionBase,
+  Events extends UnionBase,
+  S extends States['type']
+>(
+  state: S | ReadonlyArray<S>,
+  handler: Handler<States, Events, S, Events['type']>
+): Middleware<States, Events> {
+  const stateArr = Array.isArray(state) ? state : [state];
+  return (ctx, next) => {
+    const state = ctx.getOrFail(StateConsumer as Miid.ContextConsumer<States, true>);
+    const event = ctx.getOrFail(EventConsumer as Miid.ContextConsumer<Events, true>);
+    if (!stateArr.includes(state.type)) {
+      return next(ctx);
+    }
+    return handler(event as any, state as any, () => next(ctx));
+  };
+}
 
-  private resolveHandler<S extends States['type'], E extends Events['type']>(
-    state: S,
-    event: E
-  ): EventHandler<States, Events, S, E> | null {
-    const priority: Array<[MachineDefRootKeys, string?, string?]> = [
-      ['onEvent', event, state],
-      ['onState', state, event],
-      ['onEvent', event],
-      ['onState', state],
-      ['onAny'],
-    ];
-    for (const params of priority) {
-      const handler = this.resolveHandlerByPath(...params);
-      if (handler) {
-        return handler;
-      }
+export function handleEvent<
+  States extends UnionBase,
+  Events extends UnionBase,
+  E extends Events['type']
+>(
+  event: E | ReadonlyArray<E>,
+  handler: Handler<States, Events, States['type'], E>
+): Middleware<States, Events> {
+  const eventArr = Array.isArray(event) ? event : [event];
+  return (ctx, next) => {
+    const state = ctx.getOrFail(StateConsumer as Miid.ContextConsumer<States, true>);
+    const event = ctx.getOrFail(EventConsumer as Miid.ContextConsumer<Events, true>);
+    if (!eventArr.includes(event.type)) {
+      return next(ctx);
     }
-    return null;
-  }
+    return handler(event as any, state as any, () => next(ctx));
+  };
+}
 
-  private resolveHandlerByPath(
-    rootKey: MachineDefRootKeys,
-    ...path: [string?, string?]
-  ): EventHandler<States, Events, any, any> | null {
-    const p = [...path];
-    let current: any = this.machineDefinition[rootKey];
-    if (!current) {
-      return null;
+export function handle<
+  States extends UnionBase,
+  Events extends UnionBase,
+  S extends States['type'],
+  E extends Events['type']
+>(
+  state: S | ReadonlyArray<S>,
+  event: E | ReadonlyArray<E>,
+  handler: Handler<States, Events, S, E>
+): Middleware<States, Events> {
+  const eventArr = Array.isArray(event) ? event : [event];
+  const stateArr = Array.isArray(state) ? state : [state];
+  return (ctx, next) => {
+    const state = ctx.getOrFail(StateConsumer as Miid.ContextConsumer<States, true>);
+    const event = ctx.getOrFail(EventConsumer as Miid.ContextConsumer<Events, true>);
+    if (!eventArr.includes(event.type) || !stateArr.includes(state.type)) {
+      return next(ctx);
     }
-    if (p.length === 0) {
-      if (typeof current === 'function') {
-        return current;
-      }
-      return null;
-    }
-    if (!current) {
-      return null;
-    }
-    const firstKey = p.shift()!;
-    current = current[firstKey];
-    if (p.length === 0) {
-      if (!current) {
-        return null;
-      }
-      if (typeof current === 'function') {
-        return current;
-      }
-      if (current.any) {
-        return current.any;
-      }
-      return null;
-    }
-    if (!current) {
-      return null;
-    }
-    const secondKey = p.shift()!;
-    current = current[secondKey];
-    if (typeof current === 'function') {
-      return current;
-    }
-    return null;
-  }
+    return handler(event as any, state as any, () => next(ctx));
+  };
+}
 
-  private static checkDef<States extends UnionBase, Events extends UnionBase>(
-    def: MachineDef<States, Events>
-  ): MachineDef<States, Events> {
-    const { onEvent, onState } = def;
-    const seen: { [state: string]: Set<string> } = {};
-    if (onState) {
-      Object.entries(onState).forEach(([stateName, val]) => {
-        if (!seen[stateName]) {
-          seen[stateName] = new Set();
-        }
-        // states.add(stateName);
-        if (val && typeof val !== 'function') {
-          Object.keys(val as any).forEach((eventName) => {
-            seen[stateName].add(eventName);
-          });
-        }
-      });
-    }
-    if (onEvent) {
-      Object.entries(onEvent).forEach(([eventName, val]) => {
-        if (val && typeof val !== 'function') {
-          Object.keys(val as any).forEach((stateName) => {
-            if (seen[stateName] && seen[stateName].has(eventName)) {
-              console.warn(
-                `Duplicate handler: ${eventName}->${stateName} is already handled by ${stateName}->${eventName} !`
-              );
-            }
-          });
-        }
-      });
-    }
-    return def;
-  }
+export function handleAny<States extends UnionBase, Events extends UnionBase>(
+  handler: Handler<States, Events, States['type'], Events['type']>
+): Middleware<States, Events> {
+  return (ctx, next) => {
+    const state = ctx.getOrFail(StateConsumer as Miid.ContextConsumer<States, true>);
+    const event = ctx.getOrFail(EventConsumer as Miid.ContextConsumer<Events, true>);
+    return handler(event as any, state as any, () => next(ctx));
+  };
 }
