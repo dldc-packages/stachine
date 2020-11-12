@@ -5,6 +5,9 @@ export type EffectCleanup = () => void;
 export type EmitEvents<Events extends UnionBase> = (event: Events) => void;
 export type Effect<Events extends UnionBase> = (emit: EmitEvents<Events>) => EffectCleanup | void;
 export type RegisterEffect<Events extends UnionBase> = (effect: Effect<Events>) => void;
+export type InitialStateFn<States extends UnionBase, Events extends UnionBase> = (
+  effect: RegisterEffect<Events>
+) => States;
 
 export type EventHandler<
   States extends UnionBase,
@@ -45,21 +48,22 @@ export class StateMachine<States extends UnionBase, Events extends UnionBase> {
   private readonly machineDefinition: MachineDef<States, Events>;
   private readonly subscription = Subscription<States>() as Subscription<States>;
   private readonly options: Required<StateMachineOptions>;
-  private currentState: States;
+  private currentState!: States;
   private effectCollector: Array<() => EffectCleanup> | null = null;
   private currentEffects: Array<EffectCleanup> = [];
 
   constructor(
-    initialState: States,
+    initialState: States | InitialStateFn<States, Events>,
     machineDefinition: MachineDef<States, Events>,
     options: StateMachineOptions = {}
   ) {
-    this.currentState = initialState;
     this.machineDefinition = StateMachine.checkDef(machineDefinition);
     this.options = {
       debug: false,
       ...options,
     };
+    const initialStateFn = typeof initialState === 'function' ? initialState : () => initialState;
+    this.runWithEffect(() => initialStateFn(this.effect));
   }
 
   getState = () => this.currentState;
@@ -76,10 +80,9 @@ export class StateMachine<States extends UnionBase, Events extends UnionBase> {
       }
       return;
     }
-    this.effectCollector = [];
-    const nextState = handler(event as any, this.currentState as any, this.effect);
-    const nextEffects = this.effectCollector;
-    this.effectCollector = null;
+    const nextState = this.runWithEffect(() =>
+      handler(event as any, this.currentState as any, this.effect)
+    );
     if (nextState === null) {
       // do nothing
       if (this.options.debug) {
@@ -89,13 +92,10 @@ export class StateMachine<States extends UnionBase, Events extends UnionBase> {
       }
       return;
     }
-    this.cleanup();
-    this.currentState = nextState;
-    this.runEffects(nextEffects);
     this.subscription.emit(this.currentState);
   };
 
-  private effect: RegisterEffect<Events> = (effect) => {
+  private readonly effect: RegisterEffect<Events> = (effect) => {
     if (this.effectCollector === null) {
       throw new Error('Cannot register effect outside of transition');
     }
@@ -118,6 +118,20 @@ export class StateMachine<States extends UnionBase, Events extends UnionBase> {
       };
     });
   };
+
+  private runWithEffect(exec: () => States | null): States | null {
+    this.effectCollector = [];
+    const nextState = exec();
+    const nextEffects = this.effectCollector;
+    this.effectCollector = null;
+    if (nextState === null) {
+      return null;
+    }
+    this.cleanup();
+    this.currentState = nextState;
+    this.runEffects(nextEffects);
+    return nextState;
+  }
 
   private cleanup() {
     this.currentEffects.forEach((cleanup) => {

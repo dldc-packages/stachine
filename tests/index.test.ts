@@ -94,3 +94,33 @@ test('simple machine with listener', () => {
   machine.emit({ type: 'Sleep' });
   expect(callback).not.toHaveBeenCalled();
 });
+
+test('simple machine with initialState function', () => {
+  type States = { type: 'Home' } | { type: 'Bed' } | { type: 'Work' };
+  type Events = { type: 'Commute' } | { type: 'Wake' } | { type: 'Sleep' };
+
+  const machine = new StateMachine<States, Events>(() => ({ type: 'Home' }), {
+    onEvent: {
+      Commute: {
+        Home: () => ({ type: 'Work' }),
+        Work: () => ({ type: 'Home' }),
+      },
+      Sleep: {
+        Home: () => ({ type: 'Bed' }),
+      },
+      Wake: {
+        Bed: () => ({ type: 'Home' }),
+      },
+    },
+  });
+
+  expect(machine.getState()).toEqual({ type: 'Home' });
+  const callback = jest.fn();
+  machine.subscribe(callback);
+  machine.emit({ type: 'Commute' });
+  expect(callback).toHaveBeenCalledTimes(1);
+  expect(callback).toHaveBeenCalledWith({ type: 'Work' });
+  callback.mockClear();
+  machine.emit({ type: 'Sleep' });
+  expect(callback).not.toHaveBeenCalled();
+});
