@@ -28,7 +28,56 @@ export type Handler<
   state: Extract<States, { type: S }>,
   next: () => Result<States, Events>
 ) => Result<States, Events>;
-export type StateMachineOptions = { debug?: boolean };
+
+export type HandleObjectByStates<States extends UnionBase, Events extends UnionBase> = {
+  [S in States['type']]?:
+    | {
+        [E in Events['type']]?: Handler<States, Events, S, E>;
+      }
+    | Handler<States, Events, S, Events['type']>;
+};
+
+export type HandleObjectByEvent<States extends UnionBase, Events extends UnionBase> = {
+  [E in Events['type']]?:
+    | {
+        [S in States['type']]?: Handler<States, Events, S, E>;
+      }
+    | Handler<States, Events, States['type'], E>;
+};
+
+export type StateMachineOptions<States extends UnionBase, Events extends UnionBase> = {
+  debug?: boolean;
+  initialState: States | InitialStateFn<States, Events>;
+};
+
+export type BuilderOptions<States extends UnionBase, Events extends UnionBase> = {
+  StateConsumer: Miid.ContextConsumer<States, true>;
+  EventConsumer: Miid.ContextConsumer<Events, true>;
+  compose: (...middlewares: Array<Middleware<States, Events>>) => Middleware<States, Events>;
+  handleState<S extends States['type']>(
+    state: S | ReadonlyArray<S>,
+    handler: Handler<States, Events, S, Events['type']>
+  ): Middleware<States, Events>;
+  handleEvent<E extends Events['type']>(
+    event: E | ReadonlyArray<E>,
+    handler: Handler<States, Events, States['type'], E>
+  ): Middleware<States, Events>;
+  handle<S extends States['type'], E extends Events['type']>(
+    state: S | ReadonlyArray<S>,
+    event: E | ReadonlyArray<E>,
+    handler: Handler<States, Events, S, E>
+  ): Middleware<States, Events>;
+  handleAny(
+    handler: Handler<States, Events, States['type'], Events['type']>
+  ): Middleware<States, Events>;
+  objectByStates(obj: HandleObjectByStates<States, Events>): Middleware<States, Events>;
+  objectByEvents(obj: HandleObjectByEvent<States, Events>): Middleware<States, Events>;
+  withEffect(state: States, effect: Effect<Events>): StateWithEffect<States, Events>;
+};
+
+export type Builder<States extends UnionBase, Events extends UnionBase> = (
+  tools: BuilderOptions<States, Events>
+) => Middleware<States, Events>;
 
 const StateCtx = Miid.createContext<unknown>(null);
 const EventCtx = Miid.createContext<unknown>(null);
@@ -39,60 +88,25 @@ export const EventConsumer = EventCtx.Consumer;
 export class StateMachine<States extends UnionBase, Events extends UnionBase> {
   private readonly middleware: Middleware<States, Events>;
   private readonly subscription = Subscription<States>() as Subscription<States>;
-  private readonly options: Required<StateMachineOptions>;
+  private readonly debug: boolean;
   private currentCleanup: EffectCleanup | null = null;
   private currentState!: States;
 
-  static typed<States extends UnionBase, Events extends UnionBase>() {
-    return {
+  constructor(options: StateMachineOptions<States, Events>, builder: Builder<States, Events>) {
+    const { debug = false, initialState } = options;
+    this.middleware = builder({
       StateConsumer: StateConsumer as Miid.ContextConsumer<States, true>,
       EventConsumer: EventConsumer as Miid.ContextConsumer<Events, true>,
-      create: (
-        initialState: States | InitialStateFn<States, Events>,
-        middleware: Middleware<States, Events>,
-        options?: StateMachineOptions
-      ) => new StateMachine<States, Events>(initialState, middleware, options),
-      compose: (...middlewares: Array<Middleware<States, Events>>) => compose(...middlewares),
-      handleState<S extends States['type']>(
-        state: S | ReadonlyArray<S>,
-        handler: Handler<States, Events, S, Events['type']>
-      ): Middleware<States, Events> {
-        return handleState(state, handler);
-      },
-      handleEvent<E extends Events['type']>(
-        event: E | ReadonlyArray<E>,
-        handler: Handler<States, Events, States['type'], E>
-      ): Middleware<States, Events> {
-        return handleEvent(event, handler);
-      },
-      handle<S extends States['type'], E extends Events['type']>(
-        state: S | ReadonlyArray<S>,
-        event: E | ReadonlyArray<E>,
-        handler: Handler<States, Events, S, E>
-      ): Middleware<States, Events> {
-        return handle(state, event, handler);
-      },
-      handleAny(
-        handler: Handler<States, Events, States['type'], Events['type']>
-      ): Middleware<States, Events> {
-        return handleAny(handler);
-      },
-      withEffect(state: States, effect: Effect<Events>): StateWithEffect<States, Events> {
-        return withEffect(state, effect);
-      },
-    };
-  }
-
-  constructor(
-    initialState: States | InitialStateFn<States, Events>,
-    middleware: Middleware<States, Events>,
-    options: StateMachineOptions = {}
-  ) {
-    this.middleware = middleware;
-    this.options = {
-      debug: false,
-      ...options,
-    };
+      compose,
+      handle,
+      handleAny,
+      handleEvent,
+      handleState,
+      withEffect,
+      objectByEvents,
+      objectByStates,
+    });
+    this.debug = debug;
     const initialStateFn = typeof initialState === 'function' ? initialState : () => initialState;
     this.handleResult(initialStateFn());
   }
@@ -109,7 +123,7 @@ export class StateMachine<States extends UnionBase, Events extends UnionBase> {
 
     if (result === null) {
       // do nothing
-      if (this.options.debug) {
+      if (this.debug) {
         console.info(
           `[StateMachine] Event ${event.type} on state ${this.currentState.type} has been canceled (transition returned null)`
         );
@@ -181,6 +195,48 @@ export function withEffect<States extends UnionBase, Events extends UnionBase>(
   effect: Effect<Events>
 ): StateWithEffect<States, Events> {
   return new StateWithEffect(state, effect);
+}
+
+export function objectByStates<States extends UnionBase, Events extends UnionBase>(
+  obj: HandleObjectByStates<States, Events>
+): Middleware<States, Events> {
+  return (ctx, next) => {
+    const state = ctx.getOrFail(StateConsumer as Miid.ContextConsumer<States, true>);
+    const event = ctx.getOrFail(EventConsumer as Miid.ContextConsumer<Events, true>);
+    const stateHandler = (obj as any)[state.type];
+    if (!stateHandler) {
+      return next(ctx);
+    }
+    if (typeof stateHandler === 'function') {
+      return stateHandler(event, state, () => next(ctx));
+    }
+    const handler = stateHandler[event.type];
+    if (!handler) {
+      return next(ctx);
+    }
+    return handler(event, state, () => next(ctx));
+  };
+}
+
+export function objectByEvents<States extends UnionBase, Events extends UnionBase>(
+  obj: HandleObjectByEvent<States, Events>
+): Middleware<States, Events> {
+  return (ctx, next) => {
+    const state = ctx.getOrFail(StateConsumer as Miid.ContextConsumer<States, true>);
+    const event = ctx.getOrFail(EventConsumer as Miid.ContextConsumer<Events, true>);
+    const eventHandler = (obj as any)[event.type];
+    if (!eventHandler) {
+      return next(ctx);
+    }
+    if (typeof eventHandler === 'function') {
+      return eventHandler(event, state, () => next(ctx));
+    }
+    const handler = eventHandler[state.type];
+    if (!handler) {
+      return next(ctx);
+    }
+    return handler(event, state, () => next(ctx));
+  };
 }
 
 export function compose<States extends UnionBase, Events extends UnionBase>(
