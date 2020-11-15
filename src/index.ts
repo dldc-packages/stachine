@@ -15,9 +15,9 @@ export type UnionBase = { type: string };
 export type EffectCleanup = () => void;
 export type EmitEvents<Events extends UnionBase> = (event: Events) => void;
 export type Effect<Events extends UnionBase> = (emit: EmitEvents<Events>) => EffectCleanup | void;
-export type InitialStateFn<States extends UnionBase, Events extends UnionBase> = () =>
-  | States
-  | StateWithEffect<States, Events>;
+export type InitialStateFn<States extends UnionBase, Events extends UnionBase> = (
+  options: InitialOptions<States, Events>
+) => States | StateWithEffect<States, Events>;
 export type Handler<
   States extends UnionBase,
   Events extends UnionBase,
@@ -48,6 +48,10 @@ export type HandleObjectByEvent<States extends UnionBase, Events extends UnionBa
 export type StateMachineOptions<States extends UnionBase, Events extends UnionBase> = {
   debug?: boolean;
   initialState: States | InitialStateFn<States, Events>;
+};
+
+export type InitialOptions<States extends UnionBase, Events extends UnionBase> = {
+  withEffect(state: States, effect: Effect<Events>): StateWithEffect<States, Events>;
 };
 
 export type BuilderOptions<States extends UnionBase, Events extends UnionBase> = {
@@ -108,7 +112,7 @@ export class StateMachine<States extends UnionBase, Events extends UnionBase> {
     });
     this.debug = debug;
     const initialStateFn = typeof initialState === 'function' ? initialState : () => initialState;
-    this.handleResult(initialStateFn());
+    this.handleResult(initialStateFn({ withEffect }));
   }
 
   getState = () => this.currentState;
