@@ -95,6 +95,7 @@ export class StateMachine<States extends UnionBase, Events extends UnionBase> {
   private readonly debug: boolean;
   private currentCleanup: EffectCleanup | null = null;
   private currentState!: States;
+  private destroyed = false;
 
   constructor(options: StateMachineOptions<States, Events>, builder: Builder<States, Events>) {
     const { debug = false, initialState } = options;
@@ -120,6 +121,13 @@ export class StateMachine<States extends UnionBase, Events extends UnionBase> {
   subscribe: SubscribeMethod<States> = this.subscription.subscribe;
 
   emit = (event: Events) => {
+    if (this.destroyed) {
+      if (this.debug) {
+        console.warn(`Calling emit on an already destroyed machine. This is a no-op`);
+      }
+      return;
+    }
+
     const result = this.middleware(
       Miid.ContextStack.createFrom(StateCtx.Provider(this.currentState), EventCtx.Provider(event)),
       () => null
@@ -139,6 +147,18 @@ export class StateMachine<States extends UnionBase, Events extends UnionBase> {
       this.subscription.emit(this.currentState);
     }
   };
+
+  destroy() {
+    if (this.destroyed) {
+      if (this.debug) {
+        console.warn(`Calling destroy on an already destroyed machine`);
+      }
+      return;
+    }
+    this.destroyed = true;
+    this.cleanup();
+    this.subscription.unsubscribeAll();
+  }
 
   private handleResult(result: Result<States, Events>): boolean {
     if (result === null) {
