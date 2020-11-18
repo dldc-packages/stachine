@@ -14,9 +14,8 @@ export type Middlewares<States extends UnionBase, Events extends UnionBase> = Mi
 export type UnionBase = { type: string };
 export type EffectCleanup = () => void;
 export type EmitEvents<Events extends UnionBase> = (event: Events) => void;
-export type Effect<Events extends UnionBase> = (emit: EmitEvents<Events>) => EffectCleanup | void;
 export type InitialStateFn<States extends UnionBase, Events extends UnionBase> = (
-  options: InitialOptions<States, Events>
+  options: InitialTools<States, Events>
 ) => States | StateWithEffect<States, Events>;
 export type Handler<
   States extends UnionBase,
@@ -28,6 +27,16 @@ export type Handler<
   state: Extract<States, { type: S }>,
   next: () => Result<States, Events>
 ) => Result<States, Events>;
+
+export type EffectTools<States extends UnionBase, Events extends UnionBase> = {
+  emit: EmitEvents<Events>;
+  setState: (state: States | StateWithEffect<States, Events>) => boolean;
+  setStateWithEffect: (state: States, effect: Effect<States, Events>) => boolean;
+};
+
+export type Effect<States extends UnionBase, Events extends UnionBase> = (
+  tools: EffectTools<States, Events>
+) => EffectCleanup | void;
 
 export type HandleObjectByStates<States extends UnionBase, Events extends UnionBase> = {
   [S in States['type']]?:
@@ -50,11 +59,11 @@ export type StateMachineOptions<States extends UnionBase, Events extends UnionBa
   initialState: States | InitialStateFn<States, Events>;
 };
 
-export type InitialOptions<States extends UnionBase, Events extends UnionBase> = {
-  withEffect(state: States, effect: Effect<Events>): StateWithEffect<States, Events>;
+export type InitialTools<States extends UnionBase, Events extends UnionBase> = {
+  withEffect(state: States, effect: Effect<States, Events>): StateWithEffect<States, Events>;
 };
 
-export type BuilderOptions<States extends UnionBase, Events extends UnionBase> = {
+export type BuilderTools<States extends UnionBase, Events extends UnionBase> = {
   StateConsumer: Miid.ContextConsumer<States, true>;
   EventConsumer: Miid.ContextConsumer<Events, true>;
   compose: (...middlewares: Array<Middleware<States, Events>>) => Middleware<States, Events>;
@@ -76,11 +85,11 @@ export type BuilderOptions<States extends UnionBase, Events extends UnionBase> =
   ): Middleware<States, Events>;
   objectByStates(obj: HandleObjectByStates<States, Events>): Middleware<States, Events>;
   objectByEvents(obj: HandleObjectByEvent<States, Events>): Middleware<States, Events>;
-  withEffect(state: States, effect: Effect<Events>): StateWithEffect<States, Events>;
+  withEffect(state: States, effect: Effect<States, Events>): StateWithEffect<States, Events>;
 };
 
 export type Builder<States extends UnionBase, Events extends UnionBase> = (
-  tools: BuilderOptions<States, Events>
+  tools: BuilderTools<States, Events>
 ) => Middleware<States, Events>;
 
 const StateCtx = Miid.createContext<unknown>(null);
@@ -184,16 +193,37 @@ export class StateMachine<States extends UnionBase, Events extends UnionBase> {
     this.currentCleanup = null;
   }
 
-  private runEffect(effect: Effect<Events>) {
+  private runEffect(effect: Effect<States, Events>) {
     if (this.currentCleanup) {
       throw new Error(`Effect not cleaned up !!`);
     }
     let cleanedup = false;
-    const cleanup = effect((event) => {
+
+    const setState = (nextState: States | StateWithEffect<States, Events>) => {
       if (cleanedup) {
-        throw new Error('Cannot emit from cleaned up effect, did you forget a cleanup function ?');
+        return false;
       }
-      return this.emit(event);
+      const stateChanged = this.handleResult(nextState);
+      if (stateChanged) {
+        this.subscription.emit(this.currentState);
+        return true;
+      }
+      return false;
+    };
+
+    const cleanup = effect({
+      emit: (event) => {
+        if (cleanedup) {
+          throw new Error(
+            'Cannot emit from cleaned up effect, did you forget a cleanup function ?'
+          );
+        }
+        return this.emit(event);
+      },
+      setState,
+      setStateWithEffect: (nextState, effect) => {
+        return setState(withEffect(nextState, effect));
+      },
     });
     this.currentCleanup = () => {
       if (cleanup) {
@@ -206,9 +236,9 @@ export class StateMachine<States extends UnionBase, Events extends UnionBase> {
 
 export class StateWithEffect<States extends UnionBase, Events extends UnionBase> {
   readonly state: States;
-  readonly effect: Effect<Events>;
+  readonly effect: Effect<States, Events>;
 
-  constructor(state: States, effect: Effect<Events>) {
+  constructor(state: States, effect: Effect<States, Events>) {
     this.state = state;
     this.effect = effect;
   }
@@ -216,7 +246,7 @@ export class StateWithEffect<States extends UnionBase, Events extends UnionBase>
 
 export function withEffect<States extends UnionBase, Events extends UnionBase>(
   state: States,
-  effect: Effect<Events>
+  effect: Effect<States, Events>
 ): StateWithEffect<States, Events> {
   return new StateWithEffect(state, effect);
 }
