@@ -61,6 +61,7 @@ export type StateMachineOptions<States extends UnionBase, Events extends UnionBa
 
 export type InitialTools<States extends UnionBase, Events extends UnionBase> = {
   withEffect(state: States, effect: Effect<States, Events>): StateWithEffect<States, Events>;
+  emit: EmitEvents<Events>;
 };
 
 export type BuilderTools<States extends UnionBase, Events extends UnionBase> = {
@@ -122,7 +123,7 @@ export class StateMachine<States extends UnionBase, Events extends UnionBase> {
     });
     this.debug = debug;
     const initialStateFn = typeof initialState === 'function' ? initialState : () => initialState;
-    this.handleResult(initialStateFn({ withEffect }));
+    this.handleResult(initialStateFn({ withEffect, emit: this.emit }));
   }
 
   getState = () => this.currentState;
