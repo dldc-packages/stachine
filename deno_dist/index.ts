@@ -212,14 +212,7 @@ export class StateMachine<States extends UnionBase, Events extends UnionBase> {
     };
 
     const cleanup = effect({
-      emit: (event) => {
-        if (cleanedup) {
-          throw new Error(
-            'Cannot emit from cleaned up effect, did you forget a cleanup function ?'
-          );
-        }
-        return this.emit(event);
-      },
+      emit: this.emit,
       setState,
       setStateWithEffect: (nextState, effect) => {
         return setState(withEffect(nextState, effect));
