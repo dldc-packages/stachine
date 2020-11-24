@@ -1,11 +1,12 @@
-import { StateMachine } from '../src';
+import { StateMachine, typedTransition } from '../src';
+import { createHomeMachine, createBooleanMachine } from './utils';
 
 test('create a state machine without arre', () => {
   type States = { type: 'Init' };
   type Events = { type: 'Hey' };
 
   expect(
-    () => new StateMachine<States, Events>({ initialState: { type: 'Init' } }, () => () => null)
+    () => new StateMachine<States, Events>({ initialState: { type: 'Init' } })
   ).not.toThrow();
 });
 
@@ -29,16 +30,17 @@ test('simple machine with listener', () => {
   type States = { type: 'Home' } | { type: 'Bed' } | { type: 'Work' };
   type Events = { type: 'Commute' } | { type: 'Wake' } | { type: 'Sleep' };
 
-  const machine = new StateMachine<States, Events>(
-    { initialState: { type: 'Home' } },
-    ({ compose, handle }) =>
-      compose(
-        handle('Home', 'Commute', () => ({ type: 'Work' })),
-        handle('Home', 'Sleep', () => ({ type: 'Bed' })),
-        handle('Work', 'Commute', () => ({ type: 'Home' })),
-        handle('Bed', 'Wake', () => ({ type: 'Home' }))
-      )
-  );
+  const transition = typedTransition<States, Events>();
+
+  const machine = new StateMachine<States, Events>({
+    initialState: { type: 'Home' },
+    transitions: transition.compose(
+      transition.on({ state: 'Home', event: 'Commute' }, () => ({ type: 'Work' })),
+      transition.on({ state: 'Home', event: 'Sleep' }, () => ({ type: 'Bed' })),
+      transition.on({ state: 'Work', event: 'Commute' }, () => ({ type: 'Home' })),
+      transition.on({ state: 'Bed', event: 'Wake' }, () => ({ type: 'Home' }))
+    ),
+  });
 
   expect(machine.getState()).toEqual({ type: 'Home' });
   const callback = jest.fn();
@@ -55,16 +57,17 @@ test('simple machine with initialState function', () => {
   type States = { type: 'Home' } | { type: 'Bed' } | { type: 'Work' };
   type Events = { type: 'Commute' } | { type: 'Wake' } | { type: 'Sleep' };
 
-  const machine = new StateMachine<States, Events>(
-    { initialState: () => ({ type: 'Home' }) },
-    ({ compose, handle }) =>
-      compose(
-        handle('Home', 'Commute', () => ({ type: 'Work' })),
-        handle('Home', 'Sleep', () => ({ type: 'Bed' })),
-        handle('Work', 'Commute', () => ({ type: 'Home' })),
-        handle('Bed', 'Wake', () => ({ type: 'Home' }))
-      )
-  );
+  const transition = typedTransition<States, Events>();
+
+  const machine = new StateMachine<States, Events>({
+    initialState: { type: 'Home' },
+    transitions: transition.compose(
+      transition.on({ state: 'Home', event: 'Commute' }, () => ({ type: 'Work' })),
+      transition.on({ state: 'Home', event: 'Sleep' }, () => ({ type: 'Bed' })),
+      transition.on({ state: 'Work', event: 'Commute' }, () => ({ type: 'Home' })),
+      transition.on({ state: 'Bed', event: 'Wake' }, () => ({ type: 'Home' }))
+    ),
+  });
 
   expect(machine.getState()).toEqual({ type: 'Home' });
   const callback = jest.fn();
@@ -191,16 +194,17 @@ test('returning previous state should not call state listener', () => {
   type States = { type: 'On' } | { type: 'Off' };
   type Events = { type: 'TurnOn' } | { type: 'TurnOff' } | { type: 'Toggle' } | { type: 'Noop' };
 
-  const machine = new StateMachine<States, Events>(
-    { initialState: { type: 'Off' } },
-    ({ objectByEvents }) =>
-      objectByEvents({
-        Noop: { Off: (_e, state) => state, On: (_e, state) => state },
-        Toggle: { Off: () => ({ type: 'On' }), On: () => ({ type: 'Off' }) },
-        TurnOn: { Off: () => ({ type: 'On' }) },
-        TurnOff: { On: () => ({ type: 'Off' }) },
-      })
-  );
+  const transition = typedTransition<States, Events>();
+
+  const machine = new StateMachine<States, Events>({
+    initialState: { type: 'Off' },
+    transitions: transition.switchByEvents({
+      Noop: { Off: (_, state) => state, On: (_, state) => state },
+      Toggle: { Off: () => ({ type: 'On' }), On: () => ({ type: 'Off' }) },
+      TurnOn: { Off: () => ({ type: 'On' }) },
+      TurnOff: { On: () => ({ type: 'Off' }) },
+    }),
+  });
 
   const onStateChange = jest.fn();
 
@@ -242,36 +246,92 @@ test('destroy twice warn if debug', () => {
   consoleWarnSpy.mockRestore();
 });
 
-function createBooleanMachine({ debug, globalEffect }: { debug: boolean; globalEffect?: any }) {
-  type States = { type: 'On' } | { type: 'Off' };
-  type Events = { type: 'TurnOn' } | { type: 'TurnOff' } | { type: 'Toggle' };
+test('run effect on initial state', () => {
+  type States = { type: 'Home' };
+  type Events = never;
 
-  const machine = new StateMachine<States, Events>(
-    { initialState: { type: 'Off' }, debug, globalEffect },
-    ({ objectByEvents }) =>
-      objectByEvents({
-        Toggle: { Off: () => ({ type: 'On' }), On: () => ({ type: 'Off' }) },
-        TurnOn: { Off: () => ({ type: 'On' }) },
-        TurnOff: { On: () => ({ type: 'Off' }) },
-      })
-  );
+  const effect = jest.fn();
 
-  return machine;
-}
+  const machine = new StateMachine<States, Events>({
+    initialState: { type: 'Home' },
+    transitions: () => null,
+    effects: {
+      Home: effect,
+    },
+  });
 
-function createHomeMachine({ debug }: { debug: boolean }) {
-  type States = { type: 'Home' } | { type: 'Bed' } | { type: 'Work' };
-  type Events = { type: 'Commute' } | { type: 'Wake' } | { type: 'Sleep' };
+  expect(machine.getState()).toEqual({ type: 'Home' });
+  expect(effect).toHaveBeenCalled();
+  machine.destroy();
+});
 
-  const machine = new StateMachine<States, Events>(
-    { initialState: { type: 'Home' }, debug },
-    ({ objectByStates }) =>
-      objectByStates({
-        Home: { Commute: () => ({ type: 'Work' }), Sleep: () => ({ type: 'Bed' }) },
-        Work: { Commute: () => ({ type: 'Home' }) },
-        Bed: { Wake: () => ({ type: 'Home' }) },
-      })
-  );
+test('run effect with cleanup on initial state', () => {
+  type States = { type: 'Home' };
+  type Events = never;
 
-  return machine;
-}
+  const effectCleanup = jest.fn();
+  const effect = jest.fn(() => effectCleanup);
+
+  const machine = new StateMachine<States, Events>({
+    initialState: { type: 'Home' },
+    transitions: () => null,
+    effects: {
+      Home: effect,
+    },
+  });
+
+  expect(machine.getState()).toEqual({ type: 'Home' });
+  expect(effect).toHaveBeenCalled();
+  expect(effectCleanup).not.toHaveBeenCalled();
+  machine.destroy();
+  expect(effectCleanup).toHaveBeenCalled();
+});
+
+test('run effect on state', () => {
+  type States = { type: 'Home' } | { type: 'Work' };
+  type Events = { type: 'Commute' };
+
+  const effect = jest.fn();
+
+  const transitions = typedTransition<States, Events>();
+
+  const machine = new StateMachine<States, Events>({
+    initialState: { type: 'Home' },
+    transitions: transitions.on({ state: 'Home', event: 'Commute' }, () => ({ type: 'Work' })),
+    effects: {
+      Work: effect,
+    },
+  });
+
+  expect(machine.getState()).toEqual({ type: 'Home' });
+  expect(effect).not.toHaveBeenCalled();
+  machine.emit({ type: 'Commute' });
+  expect(machine.getState()).toEqual({ type: 'Work' });
+  expect(effect).toHaveBeenCalled();
+});
+
+test('cleanup effect on state', () => {
+  type States = { type: 'Home' } | { type: 'Work' };
+  type Events = { type: 'Commute' };
+
+  const effectCleanup = jest.fn();
+  const effect = jest.fn(() => effectCleanup);
+
+  const machine = new StateMachine<States, Events>({
+    initialState: { type: 'Home' },
+    transitions: (_, state) => (state.type === 'Home' ? { type: 'Work' } : { type: 'Home' }),
+    effects: {
+      Work: effect,
+    },
+  });
+
+  expect(machine.getState()).toEqual({ type: 'Home' });
+  expect(effect).not.toHaveBeenCalled();
+  expect(effectCleanup).not.toHaveBeenCalled();
+  machine.emit({ type: 'Commute' });
+  expect(machine.getState()).toEqual({ type: 'Work' });
+  expect(effect).toHaveBeenCalled();
+  expect(effectCleanup).not.toHaveBeenCalled();
+  machine.emit({ type: 'Commute' });
+  expect(effectCleanup).toHaveBeenCalled();
+});
