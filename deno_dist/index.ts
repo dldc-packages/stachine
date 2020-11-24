@@ -21,27 +21,26 @@ export type TypedHandler<
   S extends States['type'],
   E extends Events['type']
 > = (
-  this: StateMachine<States, Events>,
   event: Extract<Events, { type: E }>,
-  state: Extract<States, { type: S }>
+  state: Extract<States, { type: S }>,
+  machine: StateMachine<States, Events>
 ) => StateResult<States>;
 
 export type GlobalEffectHandler<States extends UnionBase, Events extends UnionBase> = (
-  this: StateMachine<States, Events>,
   options: GlobalEffectTools<States, Events>
 ) => EffectCleanup | void;
 
 export type Effects<States extends UnionBase, Events extends UnionBase> = {
   [S in States['type']]?: (
-    this: StateMachine<States, Events>,
-    state: Extract<States, { type: S }>
+    state: Extract<States, { type: S }>,
+    machine: StateMachine<States, Events>
   ) => EffectCleanup | void;
 };
 
 export type TransitionHandler<States extends UnionBase, Events extends UnionBase> = (
-  this: StateMachine<States, Events>,
   event: Events,
-  state: States
+  state: States,
+  machine: StateMachine<States, Events>
 ) => StateResult<States>;
 
 export type EventsObjectHandler<
@@ -106,7 +105,7 @@ export class StateMachine<States extends UnionBase, Events extends UnionBase> {
     this.currentState = initialState;
 
     if (globalEffect) {
-      const cleanup = globalEffect.call(this, { emit: this.emit, getState: this.getState });
+      const cleanup = globalEffect({ emit: this.emit, getState: this.getState });
       if (cleanup) {
         this.globalCleanup = cleanup;
       }
@@ -127,7 +126,7 @@ export class StateMachine<States extends UnionBase, Events extends UnionBase> {
       return;
     }
 
-    const result = this.transitions(event, this.currentState);
+    const result = this.transitions(event, this.currentState, this);
 
     if (result === null || result === CANCEL_TOKEN) {
       // do nothing
@@ -167,7 +166,7 @@ export class StateMachine<States extends UnionBase, Events extends UnionBase> {
       const state: States['type'] = this.currentState.type;
       const effect = this.effects[state];
       if (effect) {
-        const cleanup = effect.call(this, this.currentState as any);
+        const cleanup = effect(this.currentState as any, this);
         if (cleanup) {
           this.currentCleanup = cleanup;
         }
@@ -208,9 +207,9 @@ export function typedTransition<States extends UnionBase, Events extends UnionBa
   function compose(
     ...handlers: Array<TransitionHandler<States, Events>>
   ): TransitionHandler<States, Events> {
-    return function composed(event, state) {
+    return function composed(event, state, machine) {
       for (const handler of handlers) {
-        const res = handler.call(this, event, state); // handler(event, state);
+        const res = handler(event, state, machine); // handler(event, state);
         if (res) {
           return res;
         }
@@ -222,38 +221,38 @@ export function typedTransition<States extends UnionBase, Events extends UnionBa
   function switchByStates(
     obj: HandleObjectByStates<States, Events>
   ): TransitionHandler<States, Events> {
-    return function handler(event, state) {
-      const stateHandler = (obj as any)[state.type];
+    return function handler(event, state, machine) {
+      const stateHandler = obj[state.type as States['type']];
       if (!stateHandler) {
         return null;
       }
       if (typeof stateHandler === 'function') {
-        return stateHandler.call(this, event, state);
+        return stateHandler(event as any, state as any, machine);
       }
-      const handler = stateHandler[event.type];
+      const handler = stateHandler[event.type as Events['type']];
       if (!handler) {
         return null;
       }
-      return handler.call(this, event, state);
+      return handler(event as any, state as any, machine);
     };
   }
 
   function switchByEvents(
     obj: HandleObjectByEvent<States, Events>
   ): TransitionHandler<States, Events> {
-    return function handler(event, state) {
-      const eventHandler = (obj as any)[event.type];
+    return function handler(event, state, machine) {
+      const eventHandler = obj[event.type as Events['type']];
       if (!eventHandler) {
         return null;
       }
       if (typeof eventHandler === 'function') {
-        return eventHandler.call(this, event, state);
+        return eventHandler(event as any, state as any, machine);
       }
-      const handler = eventHandler[state.type];
+      const handler = eventHandler[state.type as States['type']];
       if (!handler) {
         return null;
       }
-      return handler.call(this, event, state);
+      return handler(event as any, state as any, machine);
     };
   }
 
@@ -264,18 +263,18 @@ export function typedTransition<States extends UnionBase, Events extends UnionBa
       | EventsObjectHandler<States, Events, S>
   ): TransitionHandler<States, Events> {
     const stateArr = Array.isArray(state) ? state : [state];
-    return function result(event, state) {
+    return function result(event, state, machine) {
       if (!stateArr.includes(state.type)) {
         return null;
       }
       if (typeof handler === 'function') {
-        return handler.call(this, event as any, state as any);
+        return handler(event as any, state as any, machine);
       }
-      const handlerFn = (handler as any)[event.type];
+      const handlerFn = handler[event.type as Events['type']];
       if (!handlerFn) {
         return null;
       }
-      return handlerFn(event as any, state as any);
+      return handlerFn(event as any, state as any, machine);
     };
   }
 
@@ -286,18 +285,18 @@ export function typedTransition<States extends UnionBase, Events extends UnionBa
       | StatesObjectHandler<States, Events, E>
   ): TransitionHandler<States, Events> {
     const eventArr = Array.isArray(event) ? event : [event];
-    return function result(event, state) {
+    return function result(event, state, machine) {
       if (!eventArr.includes(event.type)) {
         return null;
       }
       if (typeof handler === 'function') {
-        return handler.call(this, event as any, state as any);
+        return handler(event as any, state as any, machine);
       }
-      const handlerFn = (handler as any)[state.type];
+      const handlerFn = handler[state.type as States['type']];
       if (!handlerFn) {
         return null;
       }
-      return handlerFn.call(this, event as any, state as any);
+      return handlerFn(event as any, state as any, machine);
     };
   }
 
@@ -308,13 +307,13 @@ export function typedTransition<States extends UnionBase, Events extends UnionBa
     const { state, states, event, events } = constraint || {};
     const eventArr = Array.isArray(events) ? events : event ? [event] : null;
     const stateArr = Array.isArray(states) ? states : state ? [state] : null;
-    return function result(event, state) {
+    return function result(event, state, machine) {
       const isEvent = eventArr === null ? true : eventArr.includes(event.type);
       const isState = stateArr === null ? true : stateArr.includes(state.type);
       if (!isEvent || !isState) {
         return null;
       }
-      return handler.call(this, event as any, state as any);
+      return handler(event as any, state as any, machine);
     };
   }
 }
