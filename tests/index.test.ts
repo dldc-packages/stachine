@@ -339,3 +339,23 @@ test('cleanup effect on state', () => {
   machine.emit({ type: 'Commute' });
   expect(effectCleanup).toHaveBeenCalled();
 });
+
+test('cleanup effect on state', () => {
+  type States = { type: 'Home' } | { type: 'Work' };
+  type Events = never;
+
+  const machine = new StateMachine<States, Events>({
+    debug: true,
+    initialState: { type: 'Home' },
+    config: {
+      Home: {
+        shortcuts: ['Work'],
+        effect: (_state, machine) => {
+          machine.shortcut({ type: 'Work' });
+        },
+      },
+    },
+  });
+
+  expect(machine.getState()).toEqual({ type: 'Work' });
+});

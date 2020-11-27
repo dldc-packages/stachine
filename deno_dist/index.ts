@@ -150,13 +150,13 @@ export class StateMachine<States extends UnionBase, Events extends UnionBase> {
       );
       return;
     }
-    if (!stateConfig.shortcuts) {
+    if (!stateConfig.shortcuts || stateConfig.shortcuts.length === 0) {
       this.info(
         `Shortcut "${state.type}" on state "${this.currentState.type}" has been ignored (no shortcuts defined)`
       );
       return;
     }
-    if (!stateConfig.shortcuts.includes(this.currentState.type)) {
+    if (!stateConfig.shortcuts.includes(state.type)) {
       this.info(
         `Shortcut "${state.type}" on state "${this.currentState.type}" has been ignored (not allowed)`
       );
