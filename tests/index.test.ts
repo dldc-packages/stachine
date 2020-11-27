@@ -1,4 +1,4 @@
-import { StateMachine, typedTransition } from '../src';
+import { StateMachine } from '../src';
 import { createHomeMachine, createBooleanMachine } from './utils';
 
 test('create a state machine without arre', () => {
@@ -6,7 +6,7 @@ test('create a state machine without arre', () => {
   type Events = { type: 'Hey' };
 
   expect(
-    () => new StateMachine<States, Events>({ initialState: { type: 'Init' } })
+    () => new StateMachine<States, Events>({ initialState: { type: 'Init' }, config: {} })
   ).not.toThrow();
 });
 
@@ -30,16 +30,18 @@ test('simple machine with listener', () => {
   type States = { type: 'Home' } | { type: 'Bed' } | { type: 'Work' };
   type Events = { type: 'Commute' } | { type: 'Wake' } | { type: 'Sleep' };
 
-  const transition = typedTransition<States, Events>();
-
   const machine = new StateMachine<States, Events>({
     initialState: { type: 'Home' },
-    transitions: transition.compose(
-      transition.on({ state: 'Home', event: 'Commute' }, () => ({ type: 'Work' })),
-      transition.on({ state: 'Home', event: 'Sleep' }, () => ({ type: 'Bed' })),
-      transition.on({ state: 'Work', event: 'Commute' }, () => ({ type: 'Home' })),
-      transition.on({ state: 'Bed', event: 'Wake' }, () => ({ type: 'Home' }))
-    ),
+    config: {
+      Home: {
+        on: {
+          Commute: () => ({ type: 'Work' }),
+          Sleep: () => ({ type: 'Bed' }),
+        },
+      },
+      Work: { on: { Commute: () => ({ type: 'Home' }) } },
+      Bed: { on: { Wake: () => ({ type: 'Home' }) } },
+    },
   });
 
   expect(machine.getState()).toEqual({ type: 'Home' });
@@ -57,16 +59,18 @@ test('simple machine with initialState function', () => {
   type States = { type: 'Home' } | { type: 'Bed' } | { type: 'Work' };
   type Events = { type: 'Commute' } | { type: 'Wake' } | { type: 'Sleep' };
 
-  const transition = typedTransition<States, Events>();
-
   const machine = new StateMachine<States, Events>({
     initialState: { type: 'Home' },
-    transitions: transition.compose(
-      transition.on({ state: 'Home', event: 'Commute' }, () => ({ type: 'Work' })),
-      transition.on({ state: 'Home', event: 'Sleep' }, () => ({ type: 'Bed' })),
-      transition.on({ state: 'Work', event: 'Commute' }, () => ({ type: 'Home' })),
-      transition.on({ state: 'Bed', event: 'Wake' }, () => ({ type: 'Home' }))
-    ),
+    config: {
+      Home: {
+        on: {
+          Commute: () => ({ type: 'Work' }),
+          Sleep: () => ({ type: 'Bed' }),
+        },
+      },
+      Work: { on: { Commute: () => ({ type: 'Home' }) } },
+      Bed: { on: { Wake: () => ({ type: 'Home' }) } },
+    },
   });
 
   expect(machine.getState()).toEqual({ type: 'Home' });
@@ -184,7 +188,7 @@ test('unhandled transitions should info if debug', () => {
   expect(machine.getState()).toEqual({ type: 'Off' });
   machine.emit({ type: 'TurnOff' });
   expect(consoleInfoSpy).toHaveBeenCalledWith(
-    '[Stachine] Event "TurnOff" on state "Off" has been ignored (transition returned null or CANCEL_TOKEN)'
+    '[Stachine] Event "TurnOff" on state "Off" has been ignored (event not present in "on")'
   );
 
   consoleInfoSpy.mockRestore();
@@ -194,16 +198,24 @@ test('returning previous state should not call state listener', () => {
   type States = { type: 'On' } | { type: 'Off' };
   type Events = { type: 'TurnOn' } | { type: 'TurnOff' } | { type: 'Toggle' } | { type: 'Noop' };
 
-  const transition = typedTransition<States, Events>();
-
   const machine = new StateMachine<States, Events>({
     initialState: { type: 'Off' },
-    transitions: transition.switchByEvents({
-      Noop: { Off: (_, state) => state, On: (_, state) => state },
-      Toggle: { Off: () => ({ type: 'On' }), On: () => ({ type: 'Off' }) },
-      TurnOn: { Off: () => ({ type: 'On' }) },
-      TurnOff: { On: () => ({ type: 'Off' }) },
-    }),
+    config: {
+      On: {
+        on: {
+          Noop: (_, state) => state,
+          Toggle: () => ({ type: 'Off' }),
+          TurnOff: () => ({ type: 'Off' }),
+        },
+      },
+      Off: {
+        on: {
+          Noop: (_, state) => state,
+          Toggle: () => ({ type: 'On' }),
+          TurnOn: () => ({ type: 'On' }),
+        },
+      },
+    },
   });
 
   const onStateChange = jest.fn();
@@ -254,10 +266,7 @@ test('run effect on initial state', () => {
 
   const machine = new StateMachine<States, Events>({
     initialState: { type: 'Home' },
-    transitions: () => null,
-    effects: {
-      Home: effect,
-    },
+    config: { Home: { effect } },
   });
 
   expect(machine.getState()).toEqual({ type: 'Home' });
@@ -274,10 +283,7 @@ test('run effect with cleanup on initial state', () => {
 
   const machine = new StateMachine<States, Events>({
     initialState: { type: 'Home' },
-    transitions: () => null,
-    effects: {
-      Home: effect,
-    },
+    config: { Home: { effect } },
   });
 
   expect(machine.getState()).toEqual({ type: 'Home' });
@@ -293,13 +299,11 @@ test('run effect on state', () => {
 
   const effect = jest.fn();
 
-  const transitions = typedTransition<States, Events>();
-
   const machine = new StateMachine<States, Events>({
     initialState: { type: 'Home' },
-    transitions: transitions.on({ state: 'Home', event: 'Commute' }, () => ({ type: 'Work' })),
-    effects: {
-      Work: effect,
+    config: {
+      Home: { on: { Commute: () => ({ type: 'Work' }) } },
+      Work: { effect },
     },
   });
 
@@ -319,9 +323,9 @@ test('cleanup effect on state', () => {
 
   const machine = new StateMachine<States, Events>({
     initialState: { type: 'Home' },
-    transitions: (_, state) => (state.type === 'Home' ? { type: 'Work' } : { type: 'Home' }),
-    effects: {
-      Work: effect,
+    config: {
+      Home: { on: { Commute: () => ({ type: 'Work' }) } },
+      Work: { effect, on: { Commute: () => ({ type: 'Home' }) } },
     },
   });
 
