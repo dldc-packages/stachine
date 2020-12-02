@@ -30,8 +30,9 @@
     "build": "tsdx build && denoify",
     "codecov": "codecov",
     "preinstall": "npx only-allow pnpm",
-    "pub": "yarn build && np",
+    "pub": "pnpx run build && np",
     "start": "tsdx watch",
+    "lint": "tsdx lint src",
     "test": "tsdx test --coverage",
     "test:watch": "tsdx test --watch --coverage"
   },
