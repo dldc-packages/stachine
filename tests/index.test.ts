@@ -1,4 +1,4 @@
-import { StateMachine } from '../src';
+import { StateMachine } from '../src/mod';
 import { createHomeMachine, createBooleanMachine } from './utils';
 
 test('create a state machine without arre', () => {

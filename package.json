@@ -16,45 +16,50 @@
   },
   "license": "MIT",
   "author": "Etienne Dldc <e.deladonchamps@gmail.com>",
-  "main": "dist/index.js",
-  "module": "dist/stachine.esm.js",
-  "typings": "dist/index.d.ts",
-  "directories": {
-    "example": "examples",
-    "test": "tests"
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "import": "./dist/mod.mjs",
+      "require": "./dist/mod.js"
+    }
   },
+  "main": "./dist/mod.js",
+  "module": "./dist/mod.mjs",
+  "types": "./dist/mod.d.ts",
   "files": [
     "dist"
   ],
   "scripts": {
-    "build": "tsdx build && denoify",
-    "codecov": "codecov",
-    "preinstall": "npx only-allow pnpm",
-    "pub": "pnpx run build && np",
-    "start": "tsdx watch",
-    "lint": "tsdx lint src",
-    "test": "tsdx test --coverage",
-    "test:watch": "tsdx test --watch --coverage"
+    "build": "rimraf dist deno_dist && tsup --format cjs,esm src/mod.ts --dts src/mod.ts && denoify",
+    "lint": "prettier . --check && eslint . && tsc --noEmit",
+    "lint:fix": "prettier . --write . && eslint . --fix",
+    "release": "yarn build && np",
+    "test": "yarn lint && jest --coverage",
+    "test:run": "jest",
+    "test:watch": "jest --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "suub": "^3.2.1"
   },
   "devDependencies": {
-    "@types/jest": "^26.0.15",
-    "codecov": "^3.8.1",
-    "core-js": "3.7.0",
-    "denoify": "^0.6.1",
-    "np": "^7.0.0",
-    "tsdx": "^0.14.1",
-    "tslib": "^2.0.3",
-    "typescript": "^4.0.5"
+    "@types/jest": "^28.1.4",
+    "@typescript-eslint/eslint-plugin": "^5.30.5",
+    "@typescript-eslint/parser": "^5.30.5",
+    "denoify": "^0.11.1",
+    "eslint": "^8.19.0",
+    "eslint-config-prettier": "^8.5.0",
+    "jest": "^28.1.2",
+    "np": "^7.6.2",
+    "prettier": "^2.7.1",
+    "rimraf": "^3.0.2",
+    "ts-jest": "^28.0.5",
+    "tslib": "^2.4.0",
+    "tsup": "^6.1.3",
+    "typescript": "^4.7.4"
   },
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org"
-  },
-  "np": {
-    "yarn": false,
-    "cleanup": false
-  },
-  "dependencies": {
-    "suub": "^3.1.1"
   }
 }

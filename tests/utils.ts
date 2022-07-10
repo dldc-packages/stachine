@@ -1,4 +1,4 @@
-import { StateMachine } from '../src';
+import { StateMachine } from '../src/mod';
 
 export function createBooleanMachine({
   debug,
