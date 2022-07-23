@@ -1,7 +1,7 @@
 import { StateMachine } from '../src/mod';
 import { createHomeMachine, createBooleanMachine } from './utils';
 
-test('create a state machine without arre', () => {
+test('create a state machine without error', () => {
   type States = { type: 'Init' };
   type Events = { type: 'Hey' };
 
