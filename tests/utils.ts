@@ -1,12 +1,6 @@
 import { StateMachine } from '../src/mod';
 
-export function createBooleanMachine({
-  debug,
-  globalEffect,
-}: {
-  debug: boolean;
-  globalEffect?: any;
-}) {
+export function createBooleanMachine({ debug, globalEffect }: { debug: boolean; globalEffect?: any }) {
   type States = { type: 'On' } | { type: 'Off' };
   type Events = { type: 'TurnOn' } | { type: 'TurnOff' } | { type: 'Toggle' };
 

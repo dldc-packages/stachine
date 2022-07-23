@@ -5,9 +5,7 @@ test('create a state machine without error', () => {
   type States = { type: 'Init' };
   type Events = { type: 'Hey' };
 
-  expect(
-    () => new StateMachine<States, Events>({ initialState: { type: 'Init' }, config: {} })
-  ).not.toThrow();
+  expect(() => new StateMachine<States, Events>({ initialState: { type: 'Init' }, config: {} })).not.toThrow();
 });
 
 test('simple machine', () => {
@@ -129,9 +127,7 @@ test('emit on destroyed machine should warn if debug', () => {
   machine.destroy();
   machine.emit({ type: 'Commute' });
   expect(consoleWarnSpy).toHaveBeenCalledTimes(1);
-  expect(consoleWarnSpy).toHaveBeenCalledWith(
-    '[Stachine] Calling emit on an already destroyed machine is a no-op'
-  );
+  expect(consoleWarnSpy).toHaveBeenCalledWith('[Stachine] Calling emit on an already destroyed machine is a no-op');
 
   consoleWarnSpy.mockRestore();
 });
@@ -187,9 +183,7 @@ test('unhandled transitions should info if debug', () => {
 
   expect(machine.getState()).toEqual({ type: 'Off' });
   machine.emit({ type: 'TurnOff' });
-  expect(consoleInfoSpy).toHaveBeenCalledWith(
-    '[Stachine] Event "TurnOff" on state "Off" has been ignored (event not present in "on")'
-  );
+  expect(consoleInfoSpy).toHaveBeenCalledWith('[Stachine] Event "TurnOff" on state "Off" has been ignored (event not present in "on")');
 
   consoleInfoSpy.mockRestore();
 });
@@ -251,9 +245,7 @@ test('destroy twice warn if debug', () => {
   machine.destroy();
   expect(consoleWarnSpy).not.toHaveBeenCalled();
   machine.destroy();
-  expect(consoleWarnSpy).toHaveBeenCalledWith(
-    '[Stachine] Calling destroy on an already destroyed machine is a no-op'
-  );
+  expect(consoleWarnSpy).toHaveBeenCalledWith('[Stachine] Calling destroy on an already destroyed machine is a no-op');
 
   consoleWarnSpy.mockRestore();
 });
