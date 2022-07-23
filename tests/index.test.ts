@@ -30,6 +30,7 @@ test('simple machine with listener', () => {
 
   const machine = new StateMachine<States, Events>({
     initialState: { type: 'Home' },
+    debug: false,
     config: {
       Home: {
         on: {
@@ -59,6 +60,7 @@ test('simple machine with initialState function', () => {
 
   const machine = new StateMachine<States, Events>({
     initialState: { type: 'Home' },
+    debug: false,
     config: {
       Home: {
         on: {
@@ -127,7 +129,7 @@ test('emit on destroyed machine should warn if debug', () => {
   machine.destroy();
   machine.emit({ type: 'Commute' });
   expect(consoleWarnSpy).toHaveBeenCalledTimes(1);
-  expect(consoleWarnSpy).toHaveBeenCalledWith('[Stachine] Calling emit on an already destroyed machine is a no-op');
+  expect(consoleWarnSpy).toHaveBeenCalledWith('[Stachine] Calling .emit on an already destroyed machine is a no-op');
 
   consoleWarnSpy.mockRestore();
 });
@@ -175,17 +177,17 @@ test('global effect no cleanup', () => {
   machine.destroy();
 });
 
-test('unhandled transitions should info if debug', () => {
-  const consoleInfoSpy = jest.spyOn(global.console, 'info');
-  consoleInfoSpy.mockImplementation(() => {});
+test('unhandled transitions should warn if debug', () => {
+  const consoleWarnSpy = jest.spyOn(global.console, 'warn');
+  consoleWarnSpy.mockImplementation(() => {});
 
   const machine = createBooleanMachine({ debug: true });
 
   expect(machine.getState()).toEqual({ type: 'Off' });
   machine.emit({ type: 'TurnOff' });
-  expect(consoleInfoSpy).toHaveBeenCalledWith('[Stachine] Event "TurnOff" on state "Off" has been ignored (event not present in "on")');
+  expect(consoleWarnSpy).toHaveBeenCalledWith('[Stachine] Event "TurnOff" on state "Off" has been ignored (event not present in "Off.on")');
 
-  consoleInfoSpy.mockRestore();
+  consoleWarnSpy.mockRestore();
 });
 
 test('returning previous state should not call state listener', () => {
@@ -194,6 +196,7 @@ test('returning previous state should not call state listener', () => {
 
   const machine = new StateMachine<States, Events>({
     initialState: { type: 'Off' },
+    debug: false,
     config: {
       On: {
         on: {
@@ -245,7 +248,7 @@ test('destroy twice warn if debug', () => {
   machine.destroy();
   expect(consoleWarnSpy).not.toHaveBeenCalled();
   machine.destroy();
-  expect(consoleWarnSpy).toHaveBeenCalledWith('[Stachine] Calling destroy on an already destroyed machine is a no-op');
+  expect(consoleWarnSpy).toHaveBeenCalledWith('[Stachine] Calling .destroy on an already destroyed machine is a no-op');
 
   consoleWarnSpy.mockRestore();
 });
@@ -257,6 +260,7 @@ test('run effect on initial state', () => {
   const effect = jest.fn();
 
   const machine = new StateMachine<States, Events>({
+    debug: false,
     initialState: { type: 'Home' },
     config: { Home: { effect } },
   });
@@ -274,6 +278,7 @@ test('run effect with cleanup on initial state', () => {
   const effect = jest.fn(() => effectCleanup);
 
   const machine = new StateMachine<States, Events>({
+    debug: false,
     initialState: { type: 'Home' },
     config: { Home: { effect } },
   });
@@ -292,6 +297,7 @@ test('run effect on state', () => {
   const effect = jest.fn();
 
   const machine = new StateMachine<States, Events>({
+    debug: false,
     initialState: { type: 'Home' },
     config: {
       Home: { on: { Commute: () => ({ type: 'Work' }) } },
@@ -314,6 +320,7 @@ test('cleanup effect on state', () => {
   const effect = jest.fn(() => effectCleanup);
 
   const machine = new StateMachine<States, Events>({
+    debug: false,
     initialState: { type: 'Home' },
     config: {
       Home: { on: { Commute: () => ({ type: 'Work' }) } },

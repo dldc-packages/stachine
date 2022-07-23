@@ -67,7 +67,7 @@ export class StateMachine<States extends UnionBase, Events extends UnionBase> {
   private destroyed = false;
 
   constructor(options: StateMachineOptions<States, Events>) {
-    const { debug = true, strict = false, initialState, globalEffect, config = {} } = options;
+    const { debug = true, strict = false, initialState, globalEffect, config } = options;
     this.config = config;
     this.debug = debug;
     this.strict = strict;

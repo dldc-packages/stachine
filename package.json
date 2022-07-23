@@ -37,6 +37,7 @@
     "test": "yarn lint && jest --coverage",
     "test:run": "jest",
     "test:watch": "jest --watch",
+    "test:watch:cov": "jest --watch --coverage",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
