@@ -8,15 +8,16 @@ export function createBooleanMachine({ debug, globalEffect }: { debug: boolean; 
     initialState: { type: 'Off' },
     debug,
     globalEffect,
-    config: {
+    commands: {},
+    states: {
       On: {
-        on: {
+        events: {
           Toggle: () => ({ type: 'Off' }),
           TurnOff: () => ({ type: 'Off' }),
         },
       },
       Off: {
-        on: {
+        events: {
           Toggle: () => ({ type: 'On' }),
           TurnOn: () => ({ type: 'On' }),
         },
@@ -34,10 +35,11 @@ export function createHomeMachine({ debug }: { debug: boolean }) {
   const machine = new StateMachine<States, Events>({
     initialState: { type: 'Home' },
     debug,
-    config: {
-      Home: { on: { Commute: () => ({ type: 'Work' }), Sleep: () => ({ type: 'Bed' }) } },
-      Work: { on: { Commute: () => ({ type: 'Home' }) } },
-      Bed: { on: { Wake: () => ({ type: 'Home' }) } },
+    commands: {},
+    states: {
+      Home: { events: { Commute: () => ({ type: 'Work' }), Sleep: () => ({ type: 'Bed' }) } },
+      Work: { events: { Commute: () => ({ type: 'Home' }) } },
+      Bed: { events: { Wake: () => ({ type: 'Home' }) } },
     },
   });
 
