@@ -1,45 +1,55 @@
-import { StateMachine } from '../src/mod';
+import { ConfigGlobalEffect, Stachine } from '../src/mod';
 
-export function createBooleanMachine({ debug, globalEffect }: { debug: boolean; globalEffect?: any }) {
-  type States = { type: 'On' } | { type: 'Off' };
-  type Events = { type: 'TurnOn' } | { type: 'TurnOff' } | { type: 'Toggle' };
+type BoolState = { type: 'On' } | { type: 'Off' } | { type: 'Error' };
+type BoolAction = { type: 'TurnOn' } | { type: 'TurnOff' } | { type: 'Toggle' } | { type: 'Error' };
 
-  const machine = new StateMachine<States, Events>({
+export function createBooleanMachine({
+  debug,
+  globalEffect,
+}: {
+  debug?: string;
+  globalEffect?: ConfigGlobalEffect<BoolState, BoolAction>;
+} = {}) {
+  const machine = new Stachine<BoolState, BoolAction>({
     initialState: { type: 'Off' },
     debug,
-    globalEffect,
-    commands: {},
+    createErrorAction: () => ({ type: 'Error' }),
+    createErrorState: () => ({ type: 'Error' }),
+    effect: globalEffect,
     states: {
       On: {
-        events: {
+        actions: {
           Toggle: () => ({ type: 'Off' }),
           TurnOff: () => ({ type: 'Off' }),
         },
       },
       Off: {
-        events: {
+        actions: {
           Toggle: () => ({ type: 'On' }),
           TurnOn: () => ({ type: 'On' }),
         },
       },
+      Error: {},
     },
   });
 
   return machine;
 }
 
-export function createHomeMachine({ debug }: { debug: boolean }) {
-  type States = { type: 'Home' } | { type: 'Bed' } | { type: 'Work' };
-  type Events = { type: 'Commute' } | { type: 'Wake' } | { type: 'Sleep' };
+type HomeState = { type: 'Home' } | { type: 'Bed' } | { type: 'Work' } | { type: 'Error' };
+type HomeAction = { type: 'Commute' } | { type: 'Wake' } | { type: 'Sleep' } | { type: 'Error' };
 
-  const machine = new StateMachine<States, Events>({
+export function createHomeMachine({ debug }: { debug?: string } = {}) {
+  const machine = new Stachine<HomeState, HomeAction>({
     initialState: { type: 'Home' },
     debug,
-    commands: {},
+    createErrorAction: () => ({ type: 'Error' }),
+    createErrorState: () => ({ type: 'Error' }),
     states: {
-      Home: { events: { Commute: () => ({ type: 'Work' }), Sleep: () => ({ type: 'Bed' }) } },
-      Work: { events: { Commute: () => ({ type: 'Home' }) } },
-      Bed: { events: { Wake: () => ({ type: 'Home' }) } },
+      Home: { actions: { Commute: () => ({ type: 'Work' }), Sleep: () => ({ type: 'Bed' }) } },
+      Work: { actions: { Commute: () => ({ type: 'Home' }) } },
+      Bed: { actions: { Wake: () => ({ type: 'Home' }) } },
+      Error: {},
     },
   });
 
