@@ -62,6 +62,7 @@ export class Stachine<State extends Base, Action extends Base> {
   public readonly subscribe: SubscribeMethod<State>;
   public readonly isState: (...types: ReadonlyArray<State['type']>) => boolean;
   public readonly destroy: () => void;
+  public readonly isDestroyed: () => boolean;
 
   constructor({ initialState, states, debug, strict, effect: globalEffect, createErrorAction, createErrorState }: Config<State, Action>) {
     const statesActionsResolved: StatesActionsResolved<State, Action> = {} as any;
@@ -210,6 +211,8 @@ export class Stachine<State extends Base, Action extends Base> {
         globalEffectCleanup();
       }
     };
+
+    this.isDestroyed = () => destroyed;
 
     const globalEffectCleanup = globalEffect?.({ dispatch: this.dispatch, getState: this.getState }) ?? null;
 
