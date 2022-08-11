@@ -78,6 +78,14 @@ export class Stachine<State extends Base, Action extends Base> {
       });
     });
 
+    const warn = (message: string, infos?: any) => {
+      const prefix = debug ? `[${debug}] ` : '[Stachine] ';
+      console.warn(prefix + message);
+      if (infos) {
+        console.warn(infos);
+      }
+    };
+
     /**
      * Return true if the state has changed
      */
@@ -111,7 +119,7 @@ export class Stachine<State extends Base, Action extends Base> {
         if (strict) {
           throw new Error(`Action ${action.type} is not allowed in state ${state.type}`);
         }
-        console.warn(`[Stachine] Unexpected action type ${action.type} in state ${state.type}`);
+        warn(`Unexpected action type ${action.type} in state ${state.type}`, { action, state });
         return;
       }
       const transition = allowedRes.transition;
@@ -166,10 +174,7 @@ export class Stachine<State extends Base, Action extends Base> {
 
     const checkDestroyed = (action: string, infos?: any) => {
       if (destroyed) {
-        if (infos) {
-          console.warn(infos);
-        }
-        console.warn(`[Stachine] Calling .${action} on an already destroyed machine is a no-op`);
+        warn(`Calling .${action} on an already destroyed machine is a no-op`, infos);
         return;
       }
     };
