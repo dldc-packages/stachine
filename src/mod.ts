@@ -164,8 +164,11 @@ export class Stachine<State extends Base, Action extends Base> {
       cleanup = null;
     };
 
-    const checkDestroyed = (action: string) => {
+    const checkDestroyed = (action: string, infos?: any) => {
       if (destroyed) {
+        if (infos) {
+          console.warn(infos);
+        }
         console.warn(`[Stachine] Calling .${action} on an already destroyed machine is a no-op`);
         return;
       }
@@ -177,7 +180,7 @@ export class Stachine<State extends Base, Action extends Base> {
     let destroyed = false;
 
     this.dispatch = (action) => {
-      checkDestroyed('dispatch');
+      checkDestroyed('dispatch', { state, action });
       internalDispatch(action, false);
     };
 
@@ -194,7 +197,7 @@ export class Stachine<State extends Base, Action extends Base> {
     };
 
     this.destroy = () => {
-      checkDestroyed('destroy');
+      checkDestroyed('destroy', { state });
 
       destroyed = true;
       runCleanup();

@@ -147,7 +147,7 @@ test('dispatch on destroyed machine should warn', () => {
   expect(machine.getState()).toEqual({ type: 'Work' });
   machine.destroy();
   machine.dispatch({ type: 'Commute' });
-  expect(consoleWarnSpy).toHaveBeenCalledTimes(1);
+  expect(consoleWarnSpy).toHaveBeenCalledTimes(2);
   expect(consoleWarnSpy).toHaveBeenCalledWith('[Stachine] Calling .dispatch on an already destroyed machine is a no-op');
 });
 
