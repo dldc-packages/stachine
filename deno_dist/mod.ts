@@ -55,16 +55,38 @@ type StatesActionsResolved<State extends Base, Action extends Base> = {
   };
 };
 
-export class Stachine<State extends Base, Action extends Base> {
-  public readonly dispatch: (action: Action) => void;
-  public readonly allowed: (action: Action) => boolean;
-  public readonly getState: () => State;
-  public readonly subscribe: SubscribeMethod<State>;
-  public readonly isState: (...types: ReadonlyArray<State['type']>) => boolean;
-  public readonly destroy: () => void;
-  public readonly isDestroyed: () => boolean;
+const IS_STACHINE = Symbol('IS_STACHINE');
 
-  constructor({ initialState, states, debug, strict, effect: globalEffect, createErrorAction, createErrorState }: Config<State, Action>) {
+export interface IStachine<State extends Base, Action extends Base> {
+  [IS_STACHINE]: true;
+  readonly dispatch: (action: Action) => void;
+  readonly allowed: (action: Action) => boolean;
+  readonly getState: () => State;
+  readonly subscribe: SubscribeMethod<State>;
+  readonly isState: (...types: ReadonlyArray<State['type']>) => boolean;
+  readonly destroy: () => void;
+  readonly isDestroyed: () => boolean;
+}
+
+export const Stachine = (() => {
+  return Object.assign(create, { is });
+
+  function is(maybe: unknown): maybe is IStachine<any, any> {
+    if (!maybe) {
+      return false;
+    }
+    return (maybe as any)[IS_STACHINE] === true;
+  }
+
+  function create<State extends Base, Action extends Base>({
+    initialState,
+    states,
+    debug,
+    strict,
+    effect: globalEffect,
+    createErrorAction,
+    createErrorState,
+  }: Config<State, Action>): IStachine<State, Action> {
     const statesActionsResolved: StatesActionsResolved<State, Action> = {} as any;
     Object.entries(states).forEach((entry) => {
       const [state, stateConfig] = entry as [Action['type'], StateConfig<State, State, Action>];
@@ -79,18 +101,38 @@ export class Stachine<State extends Base, Action extends Base> {
       });
     });
 
-    const warn = (message: string, infos?: any) => {
+    const sub = Subscription<State>() as Subscription<State>;
+    let state: State = initialState;
+    let cleanup: Cleanup | null = null;
+    let destroyed = false;
+
+    const globalEffectCleanup = globalEffect?.({ dispatch, getState }) ?? null;
+
+    runEffect();
+
+    return {
+      [IS_STACHINE]: true,
+      dispatch,
+      allowed,
+      getState,
+      subscribe: sub.subscribe,
+      isState,
+      destroy,
+      isDestroyed,
+    };
+
+    function warn(message: string, infos?: any) {
       const prefix = debug ? `[${debug}] ` : '[Stachine] ';
       console.warn(prefix + message);
       if (infos) {
         console.warn(infos);
       }
-    };
+    }
 
     /**
      * Return true if the state has changed
      */
-    const setState = (newtState: State): boolean => {
+    function setState(newtState: State): boolean {
       const prevState = state;
       if (newtState === prevState) {
         return false;
@@ -102,9 +144,9 @@ export class Stachine<State extends Base, Action extends Base> {
         runEffect();
       }
       return true;
-    };
+    }
 
-    const actionAllowed = (action: Action): AllowedResult<State, Action> => {
+    function actionAllowed(action: Action): AllowedResult<State, Action> {
       const stateKey = state.type as State['type'];
       const actionKey = action.type as Action['type'];
       const actionConfig = statesActionsResolved[stateKey][actionKey] ?? false;
@@ -112,9 +154,9 @@ export class Stachine<State extends Base, Action extends Base> {
         return { allowed: false };
       }
       return { allowed: true, transition: actionConfig };
-    };
+    }
 
-    const internalDispatch = (action: Action, fromError: boolean): void => {
+    function internalDispatch(action: Action, fromError: boolean): void {
       const allowedRes = actionAllowed(action);
       if (allowedRes.allowed === false) {
         if (strict) {
@@ -155,54 +197,49 @@ export class Stachine<State extends Base, Action extends Base> {
           return;
         }
       }
-    };
+    }
 
-    const runEffect = () => {
+    function runEffect() {
       const stateKey = state.type as keyof typeof states;
       runCleanup();
       const effect = states[stateKey].effect;
       if (effect) {
-        cleanup = effect({ state: state as any, dispatch: this.dispatch }) ?? null;
+        cleanup = effect({ state: state as any, dispatch }) ?? null;
       }
-    };
+    }
 
-    const runCleanup = () => {
+    function runCleanup() {
       if (cleanup !== null) {
         cleanup();
       }
       cleanup = null;
-    };
+    }
 
-    const checkDestroyed = (action: string, infos?: any) => {
+    function checkDestroyed(action: string, infos?: any) {
       if (destroyed) {
         warn(`Calling .${action} on an already destroyed machine is a no-op`, infos);
         return;
       }
-    };
+    }
 
-    const sub = Subscription<State>() as Subscription<State>;
-    let state: State = initialState;
-    let cleanup: Cleanup | null = null;
-    let destroyed = false;
-
-    this.dispatch = (action) => {
+    function dispatch(action: Action) {
       checkDestroyed('dispatch', { state, action });
       internalDispatch(action, false);
-    };
+    }
 
-    this.allowed = (action) => {
+    function allowed(action: Action) {
       return actionAllowed(action).allowed;
-    };
+    }
 
-    this.subscribe = sub.subscribe;
+    function getState() {
+      return state;
+    }
 
-    this.getState = () => state;
-
-    this.isState = (...types) => {
+    function isState(...types: ReadonlyArray<State['type']>): boolean {
       return types.includes(state.type);
-    };
+    }
 
-    this.destroy = () => {
+    function destroy() {
       checkDestroyed('destroy', { state });
 
       destroyed = true;
@@ -210,12 +247,10 @@ export class Stachine<State extends Base, Action extends Base> {
       if (globalEffectCleanup) {
         globalEffectCleanup();
       }
-    };
+    }
 
-    this.isDestroyed = () => destroyed;
-
-    const globalEffectCleanup = globalEffect?.({ dispatch: this.dispatch, getState: this.getState }) ?? null;
-
-    runEffect();
+    function isDestroyed() {
+      return destroyed;
+    }
   }
-}
+})();

@@ -16,17 +16,16 @@ test('create a state machine without error', () => {
   type State = { type: 'Init' } | { type: 'Error'; error: unknown };
   type Action = { type: 'Hey' } | { type: 'FatalError'; error: unknown };
 
-  expect(
-    () =>
-      new Stachine<State, Action>({
-        createErrorAction: (err) => ({ type: 'FatalError', error: err }),
-        createErrorState: (err) => ({ type: 'Error', error: err }),
-        states: {
-          Error: {},
-          Init: {},
-        },
-        initialState: { type: 'Init' },
-      })
+  expect(() =>
+    Stachine<State, Action>({
+      createErrorAction: (err) => ({ type: 'FatalError', error: err }),
+      createErrorState: (err) => ({ type: 'Error', error: err }),
+      states: {
+        Error: {},
+        Init: {},
+      },
+      initialState: { type: 'Init' },
+    })
   ).not.toThrow();
 });
 
@@ -46,7 +45,7 @@ test('simple machine with listener', () => {
   type State = { type: 'Home' } | { type: 'Bed' } | { type: 'Work' } | { type: 'Error' };
   type Action = { type: 'Commute' } | { type: 'Wake' } | { type: 'Sleep' } | { type: 'Error' };
 
-  const machine = new Stachine<State, Action>({
+  const machine = Stachine<State, Action>({
     initialState: { type: 'Home' },
     createErrorAction: () => ({ type: 'Error' }),
     createErrorState: () => ({ type: 'Error' }),
@@ -78,7 +77,7 @@ test('simple machine with initialState function', () => {
   type State = { type: 'Home' } | { type: 'Bed' } | { type: 'Work' } | { type: 'Error' };
   type Action = { type: 'Commute' } | { type: 'Wake' } | { type: 'Sleep' } | { type: 'Error' };
 
-  const machine = new Stachine<State, Action>({
+  const machine = Stachine<State, Action>({
     initialState: { type: 'Home' },
     createErrorAction: () => ({ type: 'Error' }),
     createErrorState: () => ({ type: 'Error' }),
@@ -190,7 +189,7 @@ test('returning previous state should not call state listener', () => {
   type State = { type: 'On' } | { type: 'Off' } | { type: 'Error' };
   type Action = { type: 'TurnOn' } | { type: 'TurnOff' } | { type: 'Toggle' } | { type: 'Noop' } | { type: 'Error' };
 
-  const machine = new Stachine<State, Action>({
+  const machine = Stachine<State, Action>({
     initialState: { type: 'Off' },
     createErrorAction: () => ({ type: 'Error' }),
     createErrorState: () => ({ type: 'Error' }),
@@ -252,7 +251,7 @@ test('run effect on initial state', () => {
 
   const effect = jest.fn();
 
-  const machine = new Stachine<State, Action>({
+  const machine = Stachine<State, Action>({
     initialState: { type: 'Home' },
     createErrorAction: () => {
       throw new Error('No error action');
@@ -273,7 +272,7 @@ test('run effect with cleanup on initial state', () => {
   const effectCleanup = jest.fn();
   const effect = jest.fn(() => effectCleanup);
 
-  const machine = new Stachine<State, Action>({
+  const machine = Stachine<State, Action>({
     initialState: { type: 'Home' },
     states: { Home: { effect }, Error: {} },
     createErrorAction: () => {
@@ -295,7 +294,7 @@ test('run effect on state', () => {
 
   const effect = jest.fn();
 
-  const machine = new Stachine<State, Action>({
+  const machine = Stachine<State, Action>({
     initialState: { type: 'Home' },
 
     createErrorAction: () => ({ type: 'Error' }),
@@ -321,7 +320,7 @@ test('cleanup effect on state', () => {
   const effectCleanup = jest.fn();
   const effect = jest.fn(() => effectCleanup);
 
-  const machine = new Stachine<State, Action>({
+  const machine = Stachine<State, Action>({
     initialState: { type: 'Home' },
     createErrorAction: () => ({ type: 'Error' }),
     createErrorState: () => ({ type: 'Error' }),
