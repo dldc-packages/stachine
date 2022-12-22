@@ -10,7 +10,7 @@ export function createBooleanMachine({
   debug?: string;
   globalEffect?: ConfigGlobalEffect<BoolState, BoolAction>;
 } = {}) {
-  const machine = new Stachine<BoolState, BoolAction>({
+  const machine = Stachine<BoolState, BoolAction>({
     initialState: { type: 'Off' },
     debug,
     createErrorAction: () => ({ type: 'Error' }),
@@ -40,7 +40,7 @@ type HomeState = { type: 'Home' } | { type: 'Bed' } | { type: 'Work' } | { type:
 type HomeAction = { type: 'Commute' } | { type: 'Wake' } | { type: 'Sleep' } | { type: 'Error' };
 
 export function createHomeMachine({ debug }: { debug?: string } = {}) {
-  const machine = new Stachine<HomeState, HomeAction>({
+  const machine = Stachine<HomeState, HomeAction>({
     initialState: { type: 'Home' },
     debug,
     createErrorAction: () => ({ type: 'Error' }),
