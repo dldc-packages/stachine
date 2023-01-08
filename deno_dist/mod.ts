@@ -17,7 +17,7 @@ export type StateActionConfig<CurrentState extends StateBase, CurrentAction exte
 export type StateConfig<CurrentState extends StateBase, State extends StateBase, Action extends ActionBase> = {
   effect?: Effect<CurrentState, Action>;
   actions?: {
-    [A in Action['action']]?: StateActionConfig<CurrentState, Extract<Action, { state: A }>, State>;
+    [A in Action['action']]?: StateActionConfig<CurrentState, Extract<Action, { action: A }>, State>;
   };
 };
 
@@ -238,8 +238,8 @@ export const Stachine = (() => {
       return state;
     }
 
-    function isState(...types: ReadonlyArray<State['state']>): boolean {
-      return types.includes(state.state);
+    function isState(...states: ReadonlyArray<State['state']>): boolean {
+      return states.includes(state.state);
     }
 
     function destroy() {
