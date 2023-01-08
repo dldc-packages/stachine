@@ -14,11 +14,15 @@ export type StateActionConfig<CurrentState extends StateBase, CurrentAction exte
   | false
   | Transition<CurrentState, CurrentAction, State>;
 
+export type StateConfigActions<CurrentState extends StateBase, State extends StateBase, Action extends ActionBase> = {
+  [A in Action['action']]?: StateActionConfig<CurrentState, Extract<Action, { action: A }>, State>;
+};
+
 export type StateConfig<CurrentState extends StateBase, State extends StateBase, Action extends ActionBase> = {
   effect?: Effect<CurrentState, Action>;
-  actions?: {
-    [A in Action['action']]?: StateActionConfig<CurrentState, Extract<Action, { action: A }>, State>;
-  };
+  // should the effect cleanup / update when transitioning to the same state?
+  effectShouldUpdate?: (state: CurrentState, prevState: CurrentState) => boolean;
+  actions?: StateConfigActions<CurrentState, State, Action>;
 };
 
 export type Transition<CurrentState extends StateBase, CurrentAction extends ActionBase, State extends StateBase> = (params: {
@@ -109,6 +113,7 @@ export const Stachine = (() => {
 
     const globalEffectCleanup = globalEffect?.({ dispatch, getState }) ?? null;
 
+    // Run effect on mount
     runEffect();
 
     return {
@@ -140,13 +145,22 @@ export const Stachine = (() => {
       }
       state = newState;
       sub.emit(state);
-      // Run effect when the state changes
-      // even if the state is the same type
-      runEffect();
-      // Run effect when state type changes
-      // if (prevState.type !== state.type) {
-      // }
+      if (shouldRunEffect(prevState, newState)) {
+        runEffect();
+      }
       return true;
+    }
+
+    function shouldRunEffect(prevState: State, newState: State): boolean {
+      if (prevState.state !== newState.state) {
+        return true;
+      }
+      const stateKey = state.state as State['state'];
+      const stateConfig = states[stateKey];
+      // By default, we don't run the effect when transitioning to the same state
+      const defaultEffectShouldUpdate = () => false;
+      const effectShouldUpdate = stateConfig.effectShouldUpdate ?? defaultEffectShouldUpdate;
+      return effectShouldUpdate(newState as any, prevState as any);
     }
 
     function actionAllowed(action: Action): AllowedResult<State, Action> {
@@ -204,8 +218,8 @@ export const Stachine = (() => {
 
     function runEffect() {
       const stateKey = state.state as keyof typeof states;
-      runCleanup();
       const effect = states[stateKey].effect;
+      runCleanup();
       if (effect) {
         cleanup = effect({ state: state as any, dispatch }) ?? null;
       }
