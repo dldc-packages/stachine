@@ -342,7 +342,7 @@ test('cleanup effect on state', () => {
   expect(effectCleanup).toHaveBeenCalled();
 });
 
-test('run cleanup and effect when transition to same state but not when state has the same ref', () => {
+test('run cleanup and effect when transition to same state but not when state has the same ref thanks to effectShouldUpdate', () => {
   type State = { state: 'Main' } | { state: 'Error' };
   type Action = { action: 'Same' } | { action: 'SameRef' } | { action: 'Error' };
 
@@ -356,6 +356,7 @@ test('run cleanup and effect when transition to same state but not when state ha
     states: {
       Main: {
         effect,
+        effectShouldUpdate: (prev, next) => prev !== next,
         actions: {
           Same: () => ({ state: 'Main' }),
           SameRef: ({ state }) => state,
