@@ -341,3 +341,45 @@ test('cleanup effect on state', () => {
   machine.dispatch({ type: 'Commute' });
   expect(effectCleanup).toHaveBeenCalled();
 });
+
+test('run cleanup and effect when transition to same state but not when state has the same ref', () => {
+  type State = { type: 'Main' } | { type: 'Error' };
+  type Action = { type: 'Same' } | { type: 'SameRef' } | { type: 'Error' };
+
+  const effectCleanup = jest.fn();
+  const effect = jest.fn(() => effectCleanup);
+
+  const machine = Stachine<State, Action>({
+    initialState: { type: 'Main' },
+    createErrorAction: () => ({ type: 'Error' }),
+    createErrorState: () => ({ type: 'Error' }),
+    states: {
+      Main: {
+        effect,
+        actions: {
+          Same: () => ({ type: 'Main' }),
+          SameRef: ({ state }) => state,
+        },
+      },
+      Error: {},
+    },
+  });
+
+  const state1 = machine.getState();
+  expect(machine.getState()).toEqual({ type: 'Main' });
+  expect(effect).toHaveBeenCalled();
+  expect(effectCleanup).not.toHaveBeenCalled();
+  machine.dispatch({ type: 'Same' });
+  const state2 = machine.getState();
+  expect(state2).toEqual(state1);
+  expect(state2).not.toBe(state1);
+  expect(effectCleanup).toHaveBeenCalledTimes(1);
+  expect(effect).toHaveBeenCalledTimes(2);
+  machine.dispatch({ type: 'SameRef' });
+  const state3 = machine.getState();
+  expect(state3).toEqual(state2);
+  expect(state3).toBe(state2);
+  // cleanup should not be called again (same state ref)
+  expect(effectCleanup).toHaveBeenCalledTimes(1);
+  expect(effect).toHaveBeenCalledTimes(2);
+});

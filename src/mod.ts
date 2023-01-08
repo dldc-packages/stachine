@@ -132,17 +132,19 @@ export const Stachine = (() => {
     /**
      * Return true if the state has changed
      */
-    function setState(newtState: State): boolean {
+    function setState(newState: State): boolean {
       const prevState = state;
-      if (newtState === prevState) {
+      if (newState === prevState) {
         return false;
       }
-      state = newtState;
+      state = newState;
       sub.emit(state);
+      // Run effect when the state changes
+      // even if the state is the same type
+      runEffect();
       // Run effect when state type changes
-      if (prevState.type !== state.type) {
-        runEffect();
-      }
+      // if (prevState.type !== state.type) {
+      // }
       return true;
     }
 
