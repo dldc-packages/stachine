@@ -1,6 +1,6 @@
 {
   "name": "stachine",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "A TypeScript state machine with events and effects",
   "keywords": [
     "state-machine",
