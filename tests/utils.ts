@@ -1,7 +1,7 @@
 import { ConfigGlobalEffect, Stachine } from '../src/mod';
 
-type BoolState = { type: 'On' } | { type: 'Off' } | { type: 'Error' };
-type BoolAction = { type: 'TurnOn' } | { type: 'TurnOff' } | { type: 'Toggle' } | { type: 'Error' };
+type BoolState = { state: 'On' } | { state: 'Off' } | { state: 'Error' };
+type BoolAction = { action: 'TurnOn' } | { action: 'TurnOff' } | { action: 'Toggle' } | { action: 'Error' };
 
 export function createBooleanMachine({
   debug,
@@ -11,22 +11,22 @@ export function createBooleanMachine({
   globalEffect?: ConfigGlobalEffect<BoolState, BoolAction>;
 } = {}) {
   const machine = Stachine<BoolState, BoolAction>({
-    initialState: { type: 'Off' },
+    initialState: { state: 'Off' },
     debug,
-    createErrorAction: () => ({ type: 'Error' }),
-    createErrorState: () => ({ type: 'Error' }),
+    createErrorAction: () => ({ action: 'Error' }),
+    createErrorState: () => ({ state: 'Error' }),
     effect: globalEffect,
     states: {
       On: {
         actions: {
-          Toggle: () => ({ type: 'Off' }),
-          TurnOff: () => ({ type: 'Off' }),
+          Toggle: () => ({ state: 'Off' }),
+          TurnOff: () => ({ state: 'Off' }),
         },
       },
       Off: {
         actions: {
-          Toggle: () => ({ type: 'On' }),
-          TurnOn: () => ({ type: 'On' }),
+          Toggle: () => ({ state: 'On' }),
+          TurnOn: () => ({ state: 'On' }),
         },
       },
       Error: {},
@@ -36,19 +36,19 @@ export function createBooleanMachine({
   return machine;
 }
 
-type HomeState = { type: 'Home' } | { type: 'Bed' } | { type: 'Work' } | { type: 'Error' };
-type HomeAction = { type: 'Commute' } | { type: 'Wake' } | { type: 'Sleep' } | { type: 'Error' };
+type HomeState = { state: 'Home' } | { state: 'Bed' } | { state: 'Work' } | { state: 'Error' };
+type HomeAction = { action: 'Commute' } | { action: 'Wake' } | { action: 'Sleep' } | { action: 'Error' };
 
 export function createHomeMachine({ debug }: { debug?: string } = {}) {
   const machine = Stachine<HomeState, HomeAction>({
-    initialState: { type: 'Home' },
+    initialState: { state: 'Home' },
     debug,
-    createErrorAction: () => ({ type: 'Error' }),
-    createErrorState: () => ({ type: 'Error' }),
+    createErrorAction: () => ({ action: 'Error' }),
+    createErrorState: () => ({ state: 'Error' }),
     states: {
-      Home: { actions: { Commute: () => ({ type: 'Work' }), Sleep: () => ({ type: 'Bed' }) } },
-      Work: { actions: { Commute: () => ({ type: 'Home' }) } },
-      Bed: { actions: { Wake: () => ({ type: 'Home' }) } },
+      Home: { actions: { Commute: () => ({ state: 'Work' }), Sleep: () => ({ state: 'Bed' }) } },
+      Work: { actions: { Commute: () => ({ state: 'Home' }) } },
+      Bed: { actions: { Wake: () => ({ state: 'Home' }) } },
       Error: {},
     },
   });

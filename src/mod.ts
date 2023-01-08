@@ -1,42 +1,43 @@
 import { SubscribeMethod, Subscription } from 'suub';
 
-type Base = { type: string };
+export type StateBase = { state: string };
+export type ActionBase = { action: string };
 
 export type Cleanup = () => void;
 
-export type Effect<CurrentState extends Base, Action extends Base> = (params: {
+export type Effect<CurrentState extends StateBase, Action extends ActionBase> = (params: {
   state: CurrentState;
   dispatch: (action: Action) => void;
 }) => Cleanup | void;
 
-export type StateActionConfig<CurrentState extends Base, CurrentAction extends Base, State extends Base> =
+export type StateActionConfig<CurrentState extends StateBase, CurrentAction extends ActionBase, State extends StateBase> =
   | false
   | Transition<CurrentState, CurrentAction, State>;
 
-export type StateConfig<CurrentState extends Base, State extends Base, Action extends Base> = {
+export type StateConfig<CurrentState extends StateBase, State extends StateBase, Action extends ActionBase> = {
   effect?: Effect<CurrentState, Action>;
   actions?: {
-    [A in Action['type']]?: StateActionConfig<CurrentState, Extract<Action, { type: A }>, State>;
+    [A in Action['action']]?: StateActionConfig<CurrentState, Extract<Action, { state: A }>, State>;
   };
 };
 
-export type Transition<CurrentState extends Base, CurrentAction extends Base, State extends Base> = (params: {
+export type Transition<CurrentState extends StateBase, CurrentAction extends ActionBase, State extends StateBase> = (params: {
   state: CurrentState;
   action: CurrentAction;
 }) => State;
 
-export type ConfigGlobalEffect<States extends Base, Action extends Base> = (params: {
+export type ConfigGlobalEffect<States extends StateBase, Action extends ActionBase> = (params: {
   getState: () => States;
   dispatch: (action: Action) => void;
 }) => Cleanup | void;
 
-export type Config<State extends Base, Action extends Base> = {
+export type Config<State extends StateBase, Action extends ActionBase> = {
   debug?: string;
   // when strict is true, the machine will throw an error if the action is not defined in the states
   strict?: boolean;
   initialState: State;
   states: {
-    [S in State['type']]: StateConfig<Extract<State, { type: S }>, State, Action>;
+    [S in State['state']]: StateConfig<Extract<State, { state: S }>, State, Action>;
   };
   effect?: ConfigGlobalEffect<State, Action>;
   // When an error occuse, we first try to emit an error action
@@ -45,25 +46,25 @@ export type Config<State extends Base, Action extends Base> = {
   createErrorState: (error: unknown) => State;
 };
 
-type AllowedResult<State extends Base, Action extends Base> =
+type AllowedResult<State extends StateBase, Action extends ActionBase> =
   | { allowed: false }
   | { allowed: true; transition: Transition<State, Action, State> };
 
-type StatesActionsResolved<State extends Base, Action extends Base> = {
-  [S in State['type']]: {
-    [A in Action['type']]?: false | Transition<State, Action, State>;
+type StatesActionsResolved<State extends StateBase, Action extends ActionBase> = {
+  [S in State['state']]: {
+    [A in Action['action']]?: false | Transition<State, Action, State>;
   };
 };
 
 const IS_STACHINE = Symbol('IS_STACHINE');
 
-export interface IStachine<State extends Base, Action extends Base> {
+export interface IStachine<State extends StateBase, Action extends ActionBase> {
   [IS_STACHINE]: true;
   readonly dispatch: (action: Action) => void;
   readonly allowed: (action: Action) => boolean;
   readonly getState: () => State;
   readonly subscribe: SubscribeMethod<State>;
-  readonly isState: (...types: ReadonlyArray<State['type']>) => boolean;
+  readonly isState: (...types: ReadonlyArray<State['state']>) => boolean;
   readonly destroy: () => void;
   readonly isDestroyed: () => boolean;
 }
@@ -78,7 +79,7 @@ export const Stachine = (() => {
     return (maybe as any)[IS_STACHINE] === true;
   }
 
-  function create<State extends Base, Action extends Base>({
+  function create<State extends StateBase, Action extends ActionBase>({
     initialState,
     states,
     debug,
@@ -89,10 +90,10 @@ export const Stachine = (() => {
   }: Config<State, Action>): IStachine<State, Action> {
     const statesActionsResolved: StatesActionsResolved<State, Action> = {} as any;
     Object.entries(states).forEach((entry) => {
-      const [state, stateConfig] = entry as [Action['type'], StateConfig<State, State, Action>];
+      const [state, stateConfig] = entry as [Action['action'], StateConfig<State, State, Action>];
       statesActionsResolved[state] = {};
       Object.entries(stateConfig.actions || {}).forEach((entry) => {
-        const [action, actionConfig] = entry as [Action['type'], StateActionConfig<State, Action, State>];
+        const [action, actionConfig] = entry as [Action['action'], StateActionConfig<State, Action, State>];
         if (actionConfig === false) {
           statesActionsResolved[state][action] = false;
           return;
@@ -149,8 +150,8 @@ export const Stachine = (() => {
     }
 
     function actionAllowed(action: Action): AllowedResult<State, Action> {
-      const stateKey = state.type as State['type'];
-      const actionKey = action.type as Action['type'];
+      const stateKey = state.state as State['state'];
+      const actionKey = action.action as Action['action'];
       const actionConfig = statesActionsResolved[stateKey][actionKey] ?? false;
       if (actionConfig === false) {
         return { allowed: false };
@@ -162,9 +163,9 @@ export const Stachine = (() => {
       const allowedRes = actionAllowed(action);
       if (allowedRes.allowed === false) {
         if (strict) {
-          throw new Error(`Action ${action.type} is not allowed in state ${state.type}`);
+          throw new Error(`Action ${action.action} is not allowed in state ${state.state}`);
         }
-        warn(`Unexpected action type ${action.type} in state ${state.type}`, { action, state });
+        warn(`Unexpected action type ${action.action} in state ${state.state}`, { action, state });
         return;
       }
       const transition = allowedRes.transition;
@@ -174,7 +175,7 @@ export const Stachine = (() => {
         const nextState = transition({ state, action });
         const stateChanged = setState(nextState);
         if (debug && stateChanged) {
-          console.groupCollapsed(`[${debug}]: ${prevState.type} + ${action.type} => ${nextState.type}`);
+          console.groupCollapsed(`[${debug}]: ${prevState.state} + ${action.action} => ${nextState.state}`);
           console.log('Prev State', prevState);
           console.log('Action', action);
           console.log('Next State', nextState);
@@ -186,7 +187,7 @@ export const Stachine = (() => {
           throw error;
         }
         if (debug) {
-          console.log(`[${debug}]: ${prevState.type} + ${action.type} => XX ERROR XX`);
+          console.log(`[${debug}]: ${prevState.state} + ${action.action} => XX ERROR XX`);
           console.log({ prevState, action });
         }
         try {
@@ -202,7 +203,7 @@ export const Stachine = (() => {
     }
 
     function runEffect() {
-      const stateKey = state.type as keyof typeof states;
+      const stateKey = state.state as keyof typeof states;
       runCleanup();
       const effect = states[stateKey].effect;
       if (effect) {
@@ -237,8 +238,8 @@ export const Stachine = (() => {
       return state;
     }
 
-    function isState(...types: ReadonlyArray<State['type']>): boolean {
-      return types.includes(state.type);
+    function isState(...types: ReadonlyArray<State['state']>): boolean {
+      return types.includes(state.state);
     }
 
     function destroy() {
