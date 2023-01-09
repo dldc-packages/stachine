@@ -342,9 +342,9 @@ test('cleanup effect on state', () => {
   expect(effectCleanup).toHaveBeenCalled();
 });
 
-test('run cleanup and effect when transition to same state but not when state has the same ref thanks to effectShouldUpdate', () => {
+test('run cleanup and effect when transition to same state with rerunEffect', () => {
   type State = { state: 'Main' } | { state: 'Error' };
-  type Action = { action: 'Same' } | { action: 'SameRef' } | { action: 'Error' };
+  type Action = { action: 'Rerun' } | { action: 'SameRef' } | { action: 'Same' } | { action: 'Error' };
 
   const effectCleanup = jest.fn();
   const effect = jest.fn(() => effectCleanup);
@@ -356,10 +356,10 @@ test('run cleanup and effect when transition to same state but not when state ha
     states: {
       Main: {
         effect,
-        effectShouldUpdate: (prev, next) => prev !== next,
         actions: {
-          Same: () => ({ state: 'Main' }),
+          Rerun: ({ rerunEffect, state }) => rerunEffect({ ...state }),
           SameRef: ({ state }) => state,
+          Same: () => ({ state: 'Main' }),
         },
       },
       Error: {},
@@ -368,19 +368,27 @@ test('run cleanup and effect when transition to same state but not when state ha
 
   const state1 = machine.getState();
   expect(machine.getState()).toEqual({ state: 'Main' });
-  expect(effect).toHaveBeenCalled();
+  expect(effect).toHaveBeenCalledTimes(1);
   expect(effectCleanup).not.toHaveBeenCalled();
-  machine.dispatch({ action: 'Same' });
+
+  machine.dispatch({ action: 'SameRef' });
   const state2 = machine.getState();
   expect(state2).toEqual(state1);
-  expect(state2).not.toBe(state1);
-  expect(effectCleanup).toHaveBeenCalledTimes(1);
-  expect(effect).toHaveBeenCalledTimes(2);
-  machine.dispatch({ action: 'SameRef' });
+  expect(state2).toBe(state1);
+  expect(effect).toHaveBeenCalledTimes(1);
+  expect(effectCleanup).not.toHaveBeenCalled();
+
+  machine.dispatch({ action: 'Same' });
   const state3 = machine.getState();
   expect(state3).toEqual(state2);
-  expect(state3).toBe(state2);
-  // cleanup should not be called again (same state ref)
-  expect(effectCleanup).toHaveBeenCalledTimes(1);
+  expect(state3).not.toBe(state2);
+  expect(effect).toHaveBeenCalledTimes(1);
+  expect(effectCleanup).not.toHaveBeenCalled();
+
+  machine.dispatch({ action: 'Rerun' });
+  const state4 = machine.getState();
+  expect(state4).toEqual(state3);
+  expect(state4).not.toBe(state3);
   expect(effect).toHaveBeenCalledTimes(2);
+  expect(effectCleanup).toHaveBeenCalledTimes(1);
 });

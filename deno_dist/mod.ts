@@ -5,6 +5,9 @@ export type ActionBase = { action: string };
 
 export type Cleanup = () => void;
 
+export const FORCE_EFFECT = Symbol('FORCE_EFFECT');
+export type FORCE_EFFECT = typeof FORCE_EFFECT;
+
 export type Effect<CurrentState extends StateBase, Action extends ActionBase> = (params: {
   state: CurrentState;
   dispatch: (action: Action) => void;
@@ -20,14 +23,13 @@ export type StateConfigActions<CurrentState extends StateBase, State extends Sta
 
 export type StateConfig<CurrentState extends StateBase, State extends StateBase, Action extends ActionBase> = {
   effect?: Effect<CurrentState, Action>;
-  // should the effect cleanup / update when transitioning to the same state?
-  effectShouldUpdate?: (state: CurrentState, prevState: CurrentState) => boolean;
   actions?: StateConfigActions<CurrentState, State, Action>;
 };
 
 export type Transition<CurrentState extends StateBase, CurrentAction extends ActionBase, State extends StateBase> = (params: {
   state: CurrentState;
   action: CurrentAction;
+  rerunEffect: (styate: CurrentState) => CurrentState;
 }) => State;
 
 export type ConfigGlobalEffect<States extends StateBase, Action extends ActionBase> = (params: {
@@ -140,27 +142,21 @@ export const Stachine = (() => {
      */
     function setState(newState: State): boolean {
       const prevState = state;
+      const forceEffect = (newState as any)[FORCE_EFFECT] === true;
+      if (forceEffect) {
+        delete (newState as any)[FORCE_EFFECT];
+      }
       if (newState === prevState) {
+        // when state has same ref,
+        // do not emit and do not run effect
         return false;
       }
       state = newState;
       sub.emit(state);
-      if (shouldRunEffect(prevState, newState)) {
+      if (forceEffect || prevState.state !== newState.state) {
         runEffect();
       }
       return true;
-    }
-
-    function shouldRunEffect(prevState: State, newState: State): boolean {
-      if (prevState.state !== newState.state) {
-        return true;
-      }
-      const stateKey = state.state as State['state'];
-      const stateConfig = states[stateKey];
-      // By default, we don't run the effect when transitioning to the same state
-      const defaultEffectShouldUpdate = () => false;
-      const effectShouldUpdate = stateConfig.effectShouldUpdate ?? defaultEffectShouldUpdate;
-      return effectShouldUpdate(newState as any, prevState as any);
     }
 
     function actionAllowed(action: Action): AllowedResult<State, Action> {
@@ -186,7 +182,7 @@ export const Stachine = (() => {
       const prevState = state;
 
       try {
-        const nextState = transition({ state, action });
+        const nextState = transition({ state, action, rerunEffect });
         const stateChanged = setState(nextState);
         if (debug && stateChanged) {
           console.groupCollapsed(`[${debug}]: ${prevState.state} + ${action.action} => ${nextState.state}`);
@@ -268,6 +264,15 @@ export const Stachine = (() => {
 
     function isDestroyed() {
       return destroyed;
+    }
+
+    function rerunEffect(nextState: State): State {
+      if (state === nextState) {
+        warn(`Calling rerunEffect on the same state is a no-op, use rerunEffect({ ...state }) instead`);
+        return state;
+      }
+      (nextState as any)[FORCE_EFFECT] = true;
+      return nextState;
     }
   }
 })();
