@@ -8,10 +8,16 @@ export type Cleanup = () => void;
 export const FORCE_EFFECT = Symbol('FORCE_EFFECT');
 export type FORCE_EFFECT = typeof FORCE_EFFECT;
 
-export type Effect<CurrentState extends StateBase, Action extends ActionBase> = (params: {
+export type Dispatch<Action extends ActionBase> = (action: Action) => void;
+
+export type EffectParams<CurrentState extends StateBase, Action extends ActionBase> = {
   state: CurrentState;
-  dispatch: (action: Action) => void;
-}) => Cleanup | void;
+  dispatch: Dispatch<Action>;
+};
+
+export type Effect<CurrentState extends StateBase, Action extends ActionBase> = (
+  params: EffectParams<CurrentState, Action>
+) => Cleanup | void;
 
 export type StateActionConfig<CurrentState extends StateBase, CurrentAction extends ActionBase, State extends StateBase> =
   | false
