@@ -53,9 +53,9 @@ export type Config<State extends StateBase, Action extends ActionBase> = {
   };
   effect?: ConfigGlobalEffect<State, Action>;
   // When an error occuse, we first try to emit an error action
-  createErrorAction: (error: unknown) => Action;
+  createErrorAction: (error: unknown, currentState: State) => Action;
   // If the dispatch of the error action fails, we replace the state with an error state
-  createErrorState: (error: unknown) => State;
+  createErrorState: (error: unknown, currentState: State) => State;
 };
 
 type AllowedResult<State extends StateBase, Action extends ActionBase> =
@@ -208,11 +208,11 @@ export const Stachine = (() => {
         }
         try {
           // dispatch error action (with fromError = true)
-          internalDispatch(createErrorAction(error), true);
+          internalDispatch(createErrorAction(error, prevState), true);
           return;
         } catch (error) {
           // Error when dispatching error action, replace state with error state
-          setState(createErrorState(error));
+          setState(createErrorState(error, prevState));
           return;
         }
       }
