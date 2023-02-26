@@ -5,14 +5,17 @@ type BoolAction = { action: 'TurnOn' } | { action: 'TurnOff' } | { action: 'Togg
 
 export function createBooleanMachine({
   debug,
+  strict,
   globalEffect,
 }: {
   debug?: string;
+  strict?: boolean;
   globalEffect?: ConfigGlobalEffect<BoolState, BoolAction>;
 } = {}) {
   const machine = Stachine<BoolState, BoolAction>({
     initialState: { state: 'Off' },
     debug,
+    strict,
     createErrorAction: () => ({ action: 'Error' }),
     createErrorState: () => ({ state: 'Error' }),
     effect: globalEffect,

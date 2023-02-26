@@ -2,14 +2,18 @@ import { Stachine } from '../src/mod';
 import { createHomeMachine, createBooleanMachine } from './utils';
 
 let consoleWarnSpy = jest.spyOn(global.console, 'warn');
+let consoleErrorSpy = jest.spyOn(global.console, 'error');
 
 beforeEach(() => {
   consoleWarnSpy = jest.spyOn(global.console, 'warn');
   consoleWarnSpy.mockImplementation(() => {});
+  consoleErrorSpy = jest.spyOn(global.console, 'error');
+  consoleErrorSpy.mockImplementation(() => {});
 });
 
 afterEach(() => {
   consoleWarnSpy.mockRestore();
+  consoleErrorSpy.mockRestore();
 });
 
 test('create a state machine without error', () => {
@@ -177,12 +181,22 @@ test('global effect no cleanup', () => {
   machine.destroy();
 });
 
-test('unhandled transitions should warn', () => {
+test('unhandled transitions should be ignore if not strict', () => {
   const machine = createBooleanMachine();
 
   expect(machine.getState()).toEqual({ state: 'Off' });
   machine.dispatch({ action: 'TurnOff' });
-  expect(consoleWarnSpy).toHaveBeenCalledWith('[Stachine] Unexpected action type TurnOff in state Off');
+  expect(consoleErrorSpy).not.toHaveBeenCalled();
+  expect(consoleWarnSpy).not.toHaveBeenCalled();
+});
+
+test('unhandled transitions should console.error when strict', () => {
+  const machine = createBooleanMachine({ strict: true });
+
+  expect(machine.getState()).toEqual({ state: 'Off' });
+  machine.dispatch({ action: 'TurnOff' });
+  expect(consoleErrorSpy).toHaveBeenCalledWith(`[Stachine] Action TurnOff is not allowed in state Off`);
+  expect(consoleWarnSpy).not.toHaveBeenCalled();
 });
 
 test('returning previous state should not call state listener', () => {

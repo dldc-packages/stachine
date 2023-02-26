@@ -38,14 +38,18 @@ export type Transition<CurrentState extends StateBase, CurrentAction extends Act
   rerunEffect: (styate: CurrentState) => CurrentState;
 }) => State;
 
-export type ConfigGlobalEffect<States extends StateBase, Action extends ActionBase> = (params: {
+export type GlobalEffectParams<States extends StateBase, Action extends ActionBase> = {
   getState: () => States;
   dispatch: (action: Action) => void;
-}) => Cleanup | void;
+};
+
+export type ConfigGlobalEffect<States extends StateBase, Action extends ActionBase> = (
+  params: GlobalEffectParams<States, Action>
+) => Cleanup | void;
 
 export type Config<State extends StateBase, Action extends ActionBase> = {
   debug?: string;
-  // when strict is true, the machine will throw an error if the action is not defined in the states
+  // when strict is true, the machine will console.error if the action is not defined in the states
   strict?: boolean;
   initialState: State;
   states: {
@@ -53,8 +57,8 @@ export type Config<State extends StateBase, Action extends ActionBase> = {
   };
   effect?: ConfigGlobalEffect<State, Action>;
   // When an error occuse, we first try to emit an error action
-  createErrorAction: (error: unknown, currentState: State) => Action;
-  // If the dispatch of the error action fails, we replace the state with an error state
+  createErrorAction?: (error: unknown, currentState: State) => Action;
+  // If the dispatch of the error action fails or createErrorAction is not defined, we replace the state with an error state
   createErrorState: (error: unknown, currentState: State) => State;
 };
 
@@ -135,11 +139,19 @@ export const Stachine = (() => {
       isDestroyed,
     };
 
-    function warn(message: string, infos?: any) {
+    function logWarn(message: string, infos?: any) {
       const prefix = debug ? `[${debug}] ` : '[Stachine] ';
       console.warn(prefix + message);
       if (infos) {
         console.warn(infos);
+      }
+    }
+
+    function logError(message: string, infos?: any) {
+      const prefix = debug ? `[${debug}] ` : '[Stachine] ';
+      console.error(prefix + message);
+      if (infos) {
+        console.error(infos);
       }
     }
 
@@ -178,10 +190,11 @@ export const Stachine = (() => {
     function internalDispatch(action: Action, fromError: boolean): void {
       const allowedRes = actionAllowed(action);
       if (allowedRes.allowed === false) {
-        if (strict) {
-          throw new Error(`Action ${action.action} is not allowed in state ${state.state}`);
+        if (!strict) {
+          // ignore
+          return;
         }
-        warn(`Unexpected action type ${action.action} in state ${state.state}`, { action, state });
+        logError(`Action ${action.action} is not allowed in state ${state.state}`, { action, state });
         return;
       }
       const transition = allowedRes.transition;
@@ -207,9 +220,13 @@ export const Stachine = (() => {
           console.log({ prevState, action });
         }
         try {
-          // dispatch error action (with fromError = true)
-          internalDispatch(createErrorAction(error, prevState), true);
-          return;
+          if (createErrorAction) {
+            // dispatch error action (with fromError = true)
+            internalDispatch(createErrorAction(error, prevState), true);
+            return;
+          }
+          // trigger createErrorState
+          throw error;
         } catch (error) {
           // Error when dispatching error action, replace state with error state
           setState(createErrorState(error, prevState));
@@ -236,7 +253,7 @@ export const Stachine = (() => {
 
     function checkDestroyed(action: string, infos?: any) {
       if (destroyed) {
-        warn(`Calling .${action} on an already destroyed machine is a no-op`, infos);
+        logWarn(`Calling .${action} on an already destroyed machine is a no-op`, infos);
         return;
       }
     }
@@ -274,7 +291,7 @@ export const Stachine = (() => {
 
     function rerunEffect(nextState: State): State {
       if (state === nextState) {
-        warn(`Calling rerunEffect on the same state is a no-op, use rerunEffect({ ...state }) instead`);
+        logWarn(`Calling rerunEffect on the same state is a no-op, use rerunEffect({ ...state }) instead`);
         return state;
       }
       (nextState as any)[FORCE_EFFECT] = true;
