@@ -45,6 +45,14 @@ test('simple machine', () => {
   expect(machine.getState()).toEqual({ state: 'Bed' });
 });
 
+test('Stachine.is', () => {
+  const machine = createHomeMachine();
+
+  expect(Stachine.is(machine)).toBe(true);
+  expect(Stachine.is({})).toBe(false);
+  expect(Stachine.is(undefined)).toBe(false);
+});
+
 test('simple machine with listener', () => {
   type State = { state: 'Home' } | { state: 'Bed' } | { state: 'Work' } | { state: 'Error' };
   type Action = { action: 'Commute' } | { action: 'Wake' } | { action: 'Sleep' } | { action: 'Error' };
@@ -405,4 +413,94 @@ test('run cleanup and effect when transition to same state with rerunEffect', ()
   expect(state4).not.toBe(state3);
   expect(effect).toHaveBeenCalledTimes(2);
   expect(effectCleanup).toHaveBeenCalledTimes(1);
+});
+
+test('Setting false as a transition should be the same as not setting it', () => {
+  type State = { state: 'Home' } | { state: 'Work' } | { state: 'Error' };
+  type Action = { action: 'Commute' } | { action: 'Invalid' } | { action: 'Error' };
+
+  const machine = Stachine<State, Action>({
+    initialState: { state: 'Home' },
+    createErrorAction: () => ({ action: 'Error' }),
+    createErrorState: () => ({ state: 'Error' }),
+    strict: true,
+    states: {
+      Home: {
+        actions: {
+          Commute: () => ({ state: 'Work' }),
+          Invalid: false,
+        },
+      },
+      Work: {
+        actions: {
+          Commute: () => ({ state: 'Home' }),
+        },
+      },
+      Error: {},
+    },
+  });
+
+  expect(machine.getState()).toEqual({ state: 'Home' });
+  machine.dispatch({ action: 'Invalid' });
+  expect(machine.getState()).toEqual({ state: 'Home' });
+  expect(consoleErrorSpy).toHaveBeenCalledWith(`[Stachine] Action Invalid is not allowed in state Home`);
+  machine.dispatch({ action: 'Commute' });
+  expect(machine.getState()).toEqual({ state: 'Work' });
+  consoleErrorSpy.mockClear();
+  machine.dispatch({ action: 'Invalid' });
+  expect(machine.getState()).toEqual({ state: 'Work' });
+  expect(consoleErrorSpy).toHaveBeenCalledWith(`[Stachine] Action Invalid is not allowed in state Work`);
+});
+
+test('Setting debug should add a prefix to error messages', () => {
+  type State = { state: 'Home' } | { state: 'Error' };
+  type Action = { action: 'Invalid' } | { action: 'Error' };
+
+  const machine = Stachine<State, Action>({
+    initialState: { state: 'Home' },
+    createErrorAction: () => ({ action: 'Error' }),
+    createErrorState: () => ({ state: 'Error' }),
+    strict: true,
+    debug: 'Debug',
+    states: { Home: { actions: { Invalid: false } }, Error: {} },
+  });
+
+  expect(machine.getState()).toEqual({ state: 'Home' });
+  machine.dispatch({ action: 'Invalid' });
+  expect(machine.getState()).toEqual({ state: 'Home' });
+  expect(consoleErrorSpy).toHaveBeenCalledWith(`[Debug] Action Invalid is not allowed in state Home`);
+});
+
+test('Setting debug should add a prefix to warn messages', () => {
+  type State = { state: 'Home' } | { state: 'Error' };
+  type Action = { action: 'Error' };
+
+  const machine = Stachine<State, Action>({
+    initialState: { state: 'Home' },
+    createErrorAction: () => ({ action: 'Error' }),
+    createErrorState: () => ({ state: 'Error' }),
+    strict: false,
+    debug: 'Debug',
+    states: { Home: {}, Error: {} },
+  });
+
+  expect(machine.getState()).toEqual({ state: 'Home' });
+  machine.destroy();
+  machine.destroy();
+  expect(consoleWarnSpy).toHaveBeenCalledWith(`[Debug] Calling .destroy on an already destroyed machine is a no-op`);
+});
+
+test('Machine.allowed should check if an action is allowed in the current state', () => {
+  const machine = createHomeMachine();
+
+  expect(machine.getState()).toEqual({ state: 'Home' });
+  expect(machine.allowed({ action: 'Commute' })).toBe(true);
+  expect(machine.allowed({ action: 'Sleep' })).toBe(true);
+  expect(machine.allowed({ action: 'Wake' })).toBe(false);
+
+  machine.dispatch({ action: 'Commute' });
+  expect(machine.getState()).toEqual({ state: 'Work' });
+  expect(machine.allowed({ action: 'Commute' })).toBe(true);
+  expect(machine.allowed({ action: 'Sleep' })).toBe(false);
+  expect(machine.allowed({ action: 'Wake' })).toBe(false);
 });

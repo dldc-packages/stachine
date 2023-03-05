@@ -118,10 +118,9 @@ export const Stachine = (() => {
       });
     });
 
-    const sub = Subscription<State>() as Subscription<State>;
+    const sub = Subscription.create<State>();
     let state: State = initialState;
     let cleanup: Cleanup | null = null;
-    let destroyed = false;
 
     const globalEffectCleanup = globalEffect?.({ dispatch, getState }) ?? null;
 
@@ -136,7 +135,7 @@ export const Stachine = (() => {
       subscribe: sub.subscribe,
       isState,
       destroy,
-      isDestroyed,
+      isDestroyed: sub.isDestroyed,
     };
 
     function logWarn(message: string, infos?: any) {
@@ -252,7 +251,7 @@ export const Stachine = (() => {
     }
 
     function checkDestroyed(action: string, infos?: any) {
-      if (destroyed) {
+      if (sub.isDestroyed()) {
         logWarn(`Calling .${action} on an already destroyed machine is a no-op`, infos);
         return;
       }
@@ -278,15 +277,11 @@ export const Stachine = (() => {
     function destroy() {
       checkDestroyed('destroy', { state });
 
-      destroyed = true;
+      sub.destroy();
       runCleanup();
       if (globalEffectCleanup) {
         globalEffectCleanup();
       }
-    }
-
-    function isDestroyed() {
-      return destroyed;
     }
 
     function rerunEffect(nextState: State): State {
