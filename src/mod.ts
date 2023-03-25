@@ -1,4 +1,5 @@
-import { SubscribeMethod, Subscription } from 'suub';
+import { Erreur } from 'erreur';
+import { OnUnsubscribed, SubscribeMethod, Subscription, SubscriptionCallback, Unsubscribe } from 'suub';
 
 export type StateBase = { state: string };
 export type ActionBase = { action: string };
@@ -19,6 +20,13 @@ export type Effect<CurrentState extends StateBase, Action extends ActionBase> = 
   params: EffectParams<CurrentState, Action>
 ) => Cleanup | void;
 
+export type ReactionParams<CurrentState extends StateBase, Action extends ActionBase> = {
+  state: CurrentState;
+  dispatch: Dispatch<Action>;
+};
+
+export type Reaction<CurrentState extends StateBase, Action extends ActionBase> = (params: ReactionParams<CurrentState, Action>) => void;
+
 export type StateActionConfig<CurrentState extends StateBase, CurrentAction extends ActionBase, State extends StateBase> =
   | false
   | Transition<CurrentState, CurrentAction, State>;
@@ -28,8 +36,13 @@ export type StateConfigActions<CurrentState extends StateBase, State extends Sta
 };
 
 export type StateConfig<CurrentState extends StateBase, State extends StateBase, Action extends ActionBase> = {
-  effect?: Effect<CurrentState, Action>;
   actions?: StateConfigActions<CurrentState, State, Action>;
+  // run when the state is entered (run after the emit)
+  // if the effect returns a cleanup function, it will be called when the state is left
+  effect?: Effect<CurrentState, Action>;
+  // run before the store emits the corresponding state (before the emit)
+  // If you dispatch an action in the reaction, the intermediate state will not be emitted
+  reaction?: Reaction<CurrentState, Action>;
 };
 
 export type Transition<CurrentState extends StateBase, CurrentAction extends ActionBase, State extends StateBase> = (params: {
@@ -50,16 +63,18 @@ export type ConfigGlobalEffect<States extends StateBase, Action extends ActionBa
 export type Config<State extends StateBase, Action extends ActionBase> = {
   debug?: string;
   // when strict is true, the machine will console.error if the action is not defined in the states
+  // when strict is false, unhandled actions will be ignored
   strict?: boolean;
   initialState: State;
   states: {
     [S in State['state']]: StateConfig<Extract<State, { state: S }>, State, Action>;
   };
+  // global effect (will cleanup when the machine is destroyed)
   effect?: ConfigGlobalEffect<State, Action>;
-  // When an error occuse, we first try to emit an error action
-  createErrorAction?: (error: unknown, currentState: State) => Action;
-  // If the dispatch of the error action fails or createErrorAction is not defined, we replace the state with an error state
+  // When an error occurs in a transition, we replace the current state with the error state
   createErrorState: (error: unknown, currentState: State) => State;
+  // max number of recursive dispatches in reaction
+  maxRecursiveDispatch?: number;
 };
 
 type AllowedResult<State extends StateBase, Action extends ActionBase> =
@@ -80,6 +95,8 @@ export interface IStachine<State extends StateBase, Action extends ActionBase> {
   readonly allowed: (action: Action) => boolean;
   readonly getState: () => State;
   readonly subscribe: SubscribeMethod<State>;
+  // same as subscribe but runs the callback immediately with the current state
+  readonly watch: SubscribeMethod<State>;
   readonly isState: (...types: ReadonlyArray<State['state']>) => boolean;
   readonly destroy: () => void;
   readonly isDestroyed: () => boolean;
@@ -101,8 +118,8 @@ export const Stachine = (() => {
     debug,
     strict,
     effect: globalEffect,
-    createErrorAction,
     createErrorState,
+    maxRecursiveDispatch = 1000,
   }: Config<State, Action>): IStachine<State, Action> {
     const statesActionsResolved: StatesActionsResolved<State, Action> = {} as any;
     Object.entries(states).forEach((entry) => {
@@ -119,13 +136,18 @@ export const Stachine = (() => {
     });
 
     const sub = Subscription.create<State>();
+    const dispatchQueue: Array<Action> = [];
+    let isDispatching = false;
+    let inTransition = false;
     let state: State = initialState;
-    let cleanup: Cleanup | null = null;
+    let currentStateCleanup: Cleanup | null = null;
 
     const globalEffectCleanup = globalEffect?.({ dispatch, getState }) ?? null;
 
     // Run effect on mount
     runEffect();
+    // Run reaction on mount
+    runReaction();
 
     return {
       [IS_STACHINE]: true,
@@ -133,47 +155,18 @@ export const Stachine = (() => {
       allowed,
       getState,
       subscribe: sub.subscribe,
+      watch,
       isState,
       destroy,
       isDestroyed: sub.isDestroyed,
     };
 
-    function logWarn(message: string, infos?: any) {
-      const prefix = debug ? `[${debug}] ` : '[Stachine] ';
-      console.warn(prefix + message);
-      if (infos) {
-        console.warn(infos);
-      }
-    }
-
-    function logError(message: string, infos?: any) {
-      const prefix = debug ? `[${debug}] ` : '[Stachine] ';
-      console.error(prefix + message);
-      if (infos) {
-        console.error(infos);
-      }
-    }
-
-    /**
-     * Return true if the state has changed
-     */
-    function setState(newState: State): boolean {
-      const prevState = state;
-      const forceEffect = (newState as any)[FORCE_EFFECT] === true;
+    function hasForceEffect(state: State): boolean {
+      const forceEffect = (state as any)[FORCE_EFFECT] === true;
       if (forceEffect) {
-        delete (newState as any)[FORCE_EFFECT];
+        delete (state as any)[FORCE_EFFECT];
       }
-      if (newState === prevState) {
-        // when state has same ref,
-        // do not emit and do not run effect
-        return false;
-      }
-      state = newState;
-      sub.emit(state);
-      if (forceEffect || prevState.state !== newState.state) {
-        runEffect();
-      }
-      return true;
+      return forceEffect;
     }
 
     function actionAllowed(action: Action): AllowedResult<State, Action> {
@@ -186,51 +179,79 @@ export const Stachine = (() => {
       return { allowed: true, transition: actionConfig };
     }
 
-    function internalDispatch(action: Action, fromError: boolean): void {
-      const allowedRes = actionAllowed(action);
-      if (allowedRes.allowed === false) {
-        if (!strict) {
-          // ignore
-          return;
-        }
-        logError(`Action ${action.action} is not allowed in state ${state.state}`, { action, state });
+    function dispatch(action: Action): void {
+      if (checkDestroyed('dispatch', { state, action })) {
         return;
       }
-      const transition = allowedRes.transition;
-      const prevState = state;
-
-      try {
-        const nextState = transition({ state, action, rerunEffect });
-        const stateChanged = setState(nextState);
-        if (debug && stateChanged) {
+      if (inTransition) {
+        throw StachineErreur.DispatchInTransition.create({ state, action });
+      }
+      dispatchQueue.push(action);
+      if (isDispatching) {
+        return;
+      }
+      isDispatching = true;
+      const prevState = state; // prevState is the state of the first dispatch
+      // keep track of the force effect bu state
+      const forceEffectMap: Record<string, boolean> = {};
+      let dispatchQueueSafe = maxRecursiveDispatch + 1; // add one because we don't count the first one
+      while (dispatchQueue.length > 0 && dispatchQueueSafe > 0) {
+        dispatchQueueSafe--;
+        const action = dispatchQueue.shift()!;
+        // apply action
+        const allowedRes = actionAllowed(action);
+        if (allowedRes.allowed === false) {
+          if (strict) {
+            logError(`Action ${action.action} is not allowed in state ${state.state}`, { action, state });
+          }
+          break;
+        }
+        const transition = allowedRes.transition;
+        const nextState = safeTransition(transition, action);
+        forceEffectMap[nextState.state] = forceEffectMap[nextState.state] || hasForceEffect(nextState);
+        if (nextState === state) {
+          if (debug) {
+            console.groupCollapsed(`[${debug}]: ${prevState.state} + ${action.action} => [SAME_STATE]`);
+            console.log({ state: prevState, action });
+            console.groupEnd();
+          }
+          break;
+        }
+        // state changed, update state
+        state = nextState;
+        if (debug) {
           console.groupCollapsed(`[${debug}]: ${prevState.state} + ${action.action} => ${nextState.state}`);
-          console.log('Prev State', prevState);
-          console.log('Action', action);
-          console.log('Next State', nextState);
+          console.log({ prevState, action, state });
           console.groupEnd();
         }
-      } catch (error) {
-        if (fromError) {
-          // if fromError is true, we let the parent call handle the error
-          throw error;
-        }
+        // run reaction for the new state
+        runReaction();
+      }
+      if (dispatchQueueSafe <= 0) {
+        throw StachineErreur.MaxRecursiveDispatchReached.create(maxRecursiveDispatch);
+      }
+      if (dispatchQueue.length > 0) {
+        // if there is still actions in the queue, this is not expected
+        throw StachineErreur.UnexpectedDispatchQueue.create(dispatchQueue);
+      }
+      isDispatching = false;
+      if (state === prevState) {
+        // no state change, stop here
+        return;
+      }
+      // state changed
+      if (debug) {
+        console.log(`[${debug}]: Emitting state ${state.state}`);
+      }
+      sub.emit(state);
+      // run effect if state type changed or if force effect
+      const stateTypeChanged = prevState.state !== state.state;
+      const shouldRunEffect = stateTypeChanged || forceEffectMap[prevState.state] === true;
+      if (shouldRunEffect) {
         if (debug) {
-          console.log(`[${debug}]: ${prevState.state} + ${action.action} => XX ERROR XX`);
-          console.log({ prevState, action });
+          console.log(`[${debug}]: Running effect for state ${state.state} (${stateTypeChanged ? 'state type changed' : 'force effect'})`);
         }
-        try {
-          if (createErrorAction) {
-            // dispatch error action (with fromError = true)
-            internalDispatch(createErrorAction(error, prevState), true);
-            return;
-          }
-          // trigger createErrorState
-          throw error;
-        } catch (error) {
-          // Error when dispatching error action, replace state with error state
-          setState(createErrorState(error, prevState));
-          return;
-        }
+        runEffect();
       }
     }
 
@@ -239,27 +260,50 @@ export const Stachine = (() => {
       const effect = states[stateKey].effect;
       runCleanup();
       if (effect) {
-        cleanup = effect({ state: state as any, dispatch }) ?? null;
+        currentStateCleanup = effect({ state: state as any, dispatch }) ?? null;
+      }
+    }
+
+    function runReaction() {
+      const stateKey = state.state as keyof typeof states;
+      const reaction = states[stateKey].reaction;
+      if (reaction) {
+        if (debug) {
+          console.log(`[${debug}]: Rining reaction of ${stateKey}`);
+        }
+        reaction({ state: state as any, dispatch });
+      }
+    }
+
+    function safeTransition(transition: Transition<State, Action, State>, action: Action): State {
+      const prevState = state;
+      inTransition = true;
+      try {
+        const nextState = transition({ state, action, rerunEffect });
+        inTransition = false;
+        return nextState;
+      } catch (error) {
+        if (debug) {
+          console.log(`[${debug}]: ${prevState.state} + ${action.action} => XX ERROR XX`);
+        }
+        inTransition = false;
+        return createErrorState(error, prevState);
       }
     }
 
     function runCleanup() {
-      if (cleanup !== null) {
-        cleanup();
+      if (currentStateCleanup !== null) {
+        currentStateCleanup();
       }
-      cleanup = null;
+      currentStateCleanup = null;
     }
 
-    function checkDestroyed(action: string, infos?: any) {
-      if (sub.isDestroyed()) {
-        logWarn(`Calling .${action} on an already destroyed machine is a no-op`, infos);
-        return;
+    function watch(callback: SubscriptionCallback<State>, onUnsubscribe?: OnUnsubscribed): Unsubscribe {
+      if (checkDestroyed('watch', { state })) {
+        return () => {};
       }
-    }
-
-    function dispatch(action: Action) {
-      checkDestroyed('dispatch', { state, action });
-      internalDispatch(action, false);
+      callback(state);
+      return sub.subscribe(callback, onUnsubscribe);
     }
 
     function allowed(action: Action) {
@@ -274,8 +318,18 @@ export const Stachine = (() => {
       return states.includes(state.state);
     }
 
+    function checkDestroyed(action: string, infos?: any): boolean {
+      if (sub.isDestroyed()) {
+        logWarn(`Calling .${action} on an already destroyed machine is a no-op`, infos);
+        return true;
+      }
+      return false;
+    }
+
     function destroy() {
-      checkDestroyed('destroy', { state });
+      if (checkDestroyed('destroy', { state })) {
+        return;
+      }
 
       sub.destroy();
       runCleanup();
@@ -292,5 +346,37 @@ export const Stachine = (() => {
       (nextState as any)[FORCE_EFFECT] = true;
       return nextState;
     }
+
+    function logWarn(message: string, infos?: any) {
+      const prefix = debug ? `[${debug}] ` : '[Stachine] ';
+      console.warn(prefix + message);
+      if (infos) {
+        console.warn(infos);
+      }
+    }
+
+    function logError(message: string, infos?: any) {
+      const prefix = debug ? `[${debug}] ` : '[Stachine] ';
+      console.error(prefix + message);
+      if (infos) {
+        console.error(infos);
+      }
+    }
   }
 })();
+
+export const StachineErreur = {
+  MaxRecursiveDispatchReached: Erreur.declare<{ limit: number }>(
+    'MaxRecursiveDispatchReached',
+    ({ limit }) =>
+      `The maxRecursiveDispatch limit (${limit}) has been reached, did you emit() in a callback ? If this is expected you can use the maxRecursiveDispatch option to raise the limit`
+  ).withTransform((limit: number) => ({ limit })),
+  UnexpectedDispatchQueue: Erreur.declare<{ queue: ActionBase[] }>(
+    'UnexpectedDispatchQueue',
+    () => `The dispatch queue is not empty after exiting dispatch loop, this is unexpected`
+  ).withTransform((queue: ActionBase[]) => ({ queue })),
+  DispatchInTransition: Erreur.declare<{ action: ActionBase; state: StateBase }>(
+    'DispatchInTransition',
+    ({ action, state }) => `Cannot dispatch in a transition (in transition ${state.state} -> ${action.action})`
+  ),
+};

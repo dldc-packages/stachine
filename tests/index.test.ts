@@ -18,11 +18,10 @@ afterEach(() => {
 
 test('create a state machine without error', () => {
   type State = { state: 'Init' } | { state: 'Error'; error: unknown };
-  type Action = { action: 'Hey' } | { action: 'FatalError'; error: unknown };
+  type Action = { action: 'Hey' };
 
   expect(() =>
     Stachine<State, Action>({
-      createErrorAction: (err) => ({ action: 'FatalError', error: err }),
       createErrorState: (err) => ({ state: 'Error', error: err }),
       initialState: { state: 'Init' },
       states: {
@@ -45,7 +44,7 @@ test('simple machine', () => {
   expect(machine.getState()).toEqual({ state: 'Bed' });
 });
 
-test('Stachine.is', () => {
+test('calling Stachine.is', () => {
   const machine = createHomeMachine();
 
   expect(Stachine.is(machine)).toBe(true);
@@ -55,11 +54,10 @@ test('Stachine.is', () => {
 
 test('simple machine with listener', () => {
   type State = { state: 'Home' } | { state: 'Bed' } | { state: 'Work' } | { state: 'Error' };
-  type Action = { action: 'Commute' } | { action: 'Wake' } | { action: 'Sleep' } | { action: 'Error' };
+  type Action = { action: 'Commute' } | { action: 'Wake' } | { action: 'Sleep' };
 
   const machine = Stachine<State, Action>({
     initialState: { state: 'Home' },
-    createErrorAction: () => ({ action: 'Error' }),
     createErrorState: () => ({ state: 'Error' }),
     states: {
       Home: {
@@ -87,11 +85,10 @@ test('simple machine with listener', () => {
 
 test('simple machine with initialState function', () => {
   type State = { state: 'Home' } | { state: 'Bed' } | { state: 'Work' } | { state: 'Error' };
-  type Action = { action: 'Commute' } | { action: 'Wake' } | { action: 'Sleep' } | { action: 'Error' };
+  type Action = { action: 'Commute' } | { action: 'Wake' } | { action: 'Sleep' };
 
   const machine = Stachine<State, Action>({
     initialState: { state: 'Home' },
-    createErrorAction: () => ({ action: 'Error' }),
     createErrorState: () => ({ state: 'Error' }),
     states: {
       Home: {
@@ -209,11 +206,10 @@ test('unhandled transitions should console.error when strict', () => {
 
 test('returning previous state should not call state listener', () => {
   type State = { state: 'On' } | { state: 'Off' } | { state: 'Error' };
-  type Action = { action: 'TurnOn' } | { action: 'TurnOff' } | { action: 'Toggle' } | { action: 'Noop' } | { action: 'Error' };
+  type Action = { action: 'TurnOn' } | { action: 'TurnOff' } | { action: 'Toggle' } | { action: 'Noop' };
 
   const machine = Stachine<State, Action>({
     initialState: { state: 'Off' },
-    createErrorAction: () => ({ action: 'Error' }),
     createErrorState: () => ({ state: 'Error' }),
     states: {
       On: {
@@ -275,9 +271,6 @@ test('run effect on initial state', () => {
 
   const machine = Stachine<State, Action>({
     initialState: { state: 'Home' },
-    createErrorAction: () => {
-      throw new Error('No error action');
-    },
     createErrorState: () => ({ state: 'Error' }),
     states: { Home: { effect }, Error: {} },
   });
@@ -297,9 +290,6 @@ test('run effect with cleanup on initial state', () => {
   const machine = Stachine<State, Action>({
     initialState: { state: 'Home' },
     states: { Home: { effect }, Error: {} },
-    createErrorAction: () => {
-      throw new Error('No error action');
-    },
     createErrorState: () => ({ state: 'Error' }),
   });
 
@@ -312,14 +302,12 @@ test('run effect with cleanup on initial state', () => {
 
 test('run effect on state', () => {
   type State = { state: 'Home' } | { state: 'Work' } | { state: 'Error' };
-  type Action = { action: 'Commute' } | { action: 'Error' };
+  type Action = { action: 'Commute' };
 
   const effect = jest.fn();
 
   const machine = Stachine<State, Action>({
     initialState: { state: 'Home' },
-
-    createErrorAction: () => ({ action: 'Error' }),
     createErrorState: () => ({ state: 'Error' }),
     states: {
       Home: { actions: { Commute: () => ({ state: 'Work' }) } },
@@ -337,14 +325,13 @@ test('run effect on state', () => {
 
 test('cleanup effect on state', () => {
   type State = { state: 'Home' } | { state: 'Work' } | { state: 'Error' };
-  type Action = { action: 'Commute' } | { action: 'Error' };
+  type Action = { action: 'Commute' };
 
   const effectCleanup = jest.fn();
   const effect = jest.fn(() => effectCleanup);
 
   const machine = Stachine<State, Action>({
     initialState: { state: 'Home' },
-    createErrorAction: () => ({ action: 'Error' }),
     createErrorState: () => ({ state: 'Error' }),
     states: {
       Home: { actions: { Commute: () => ({ state: 'Work' }) } },
@@ -366,14 +353,13 @@ test('cleanup effect on state', () => {
 
 test('run cleanup and effect when transition to same state with rerunEffect', () => {
   type State = { state: 'Main' } | { state: 'Error' };
-  type Action = { action: 'Rerun' } | { action: 'SameRef' } | { action: 'Same' } | { action: 'Error' };
+  type Action = { action: 'Rerun' } | { action: 'SameRef' } | { action: 'Same' };
 
   const effectCleanup = jest.fn();
   const effect = jest.fn(() => effectCleanup);
 
   const machine = Stachine<State, Action>({
     initialState: { state: 'Main' },
-    createErrorAction: () => ({ action: 'Error' }),
     createErrorState: () => ({ state: 'Error' }),
     states: {
       Main: {
@@ -415,13 +401,12 @@ test('run cleanup and effect when transition to same state with rerunEffect', ()
   expect(effectCleanup).toHaveBeenCalledTimes(1);
 });
 
-test('Setting false as a transition should be the same as not setting it', () => {
+test('setting false as a transition should be the same as not setting it', () => {
   type State = { state: 'Home' } | { state: 'Work' } | { state: 'Error' };
-  type Action = { action: 'Commute' } | { action: 'Invalid' } | { action: 'Error' };
+  type Action = { action: 'Commute' } | { action: 'Invalid' };
 
   const machine = Stachine<State, Action>({
     initialState: { state: 'Home' },
-    createErrorAction: () => ({ action: 'Error' }),
     createErrorState: () => ({ state: 'Error' }),
     strict: true,
     states: {
@@ -452,13 +437,12 @@ test('Setting false as a transition should be the same as not setting it', () =>
   expect(consoleErrorSpy).toHaveBeenCalledWith(`[Stachine] Action Invalid is not allowed in state Work`);
 });
 
-test('Setting debug should add a prefix to error messages', () => {
+test('setting debug should add a prefix to error messages', () => {
   type State = { state: 'Home' } | { state: 'Error' };
-  type Action = { action: 'Invalid' } | { action: 'Error' };
+  type Action = { action: 'Invalid' };
 
   const machine = Stachine<State, Action>({
     initialState: { state: 'Home' },
-    createErrorAction: () => ({ action: 'Error' }),
     createErrorState: () => ({ state: 'Error' }),
     strict: true,
     debug: 'Debug',
@@ -471,13 +455,12 @@ test('Setting debug should add a prefix to error messages', () => {
   expect(consoleErrorSpy).toHaveBeenCalledWith(`[Debug] Action Invalid is not allowed in state Home`);
 });
 
-test('Setting debug should add a prefix to warn messages', () => {
+test('setting debug should add a prefix to warn messages', () => {
   type State = { state: 'Home' } | { state: 'Error' };
   type Action = { action: 'Error' };
 
   const machine = Stachine<State, Action>({
     initialState: { state: 'Home' },
-    createErrorAction: () => ({ action: 'Error' }),
     createErrorState: () => ({ state: 'Error' }),
     strict: false,
     debug: 'Debug',
@@ -490,7 +473,7 @@ test('Setting debug should add a prefix to warn messages', () => {
   expect(consoleWarnSpy).toHaveBeenCalledWith(`[Debug] Calling .destroy on an already destroyed machine is a no-op`);
 });
 
-test('Machine.allowed should check if an action is allowed in the current state', () => {
+test('calling Machine.allowed should check if an action is allowed in the current state', () => {
   const machine = createHomeMachine();
 
   expect(machine.getState()).toEqual({ state: 'Home' });
@@ -503,4 +486,75 @@ test('Machine.allowed should check if an action is allowed in the current state'
   expect(machine.allowed({ action: 'Commute' })).toBe(true);
   expect(machine.allowed({ action: 'Sleep' })).toBe(false);
   expect(machine.allowed({ action: 'Wake' })).toBe(false);
+});
+
+test('reaction should run on state', () => {
+  type State = { state: 'Main' } | { state: 'Error' };
+  type Action = { action: 'SameState' } | { action: 'SameRef' };
+
+  const reaction = jest.fn();
+
+  const machine = Stachine<State, Action>({
+    initialState: { state: 'Main' },
+    states: {
+      Main: {
+        reaction,
+        actions: {
+          SameRef: ({ state }) => state,
+          SameState: () => ({ state: 'Main' }),
+        },
+      },
+      Error: {},
+    },
+    createErrorState: () => ({ state: 'Error' }),
+  });
+
+  expect(reaction).toHaveBeenCalledTimes(1);
+  machine.dispatch({ action: 'SameRef' });
+  expect(reaction).toHaveBeenCalledTimes(1);
+  machine.dispatch({ action: 'SameState' });
+  expect(reaction).toHaveBeenCalledTimes(2);
+});
+
+test('dispatch in reaction should not emit the intermediate state', () => {
+  type State = { state: 'Init' } | { state: 'Step1' } | { state: 'Step2' } | { state: 'Error' };
+  type Action = { action: 'Next' };
+
+  const step1Effect = jest.fn();
+  const step2Effect = jest.fn();
+
+  const machine = Stachine<State, Action>({
+    createErrorState: () => ({ state: 'Error' }),
+    initialState: { state: 'Init' },
+    states: {
+      Error: {},
+      Init: {
+        actions: {
+          Next: () => ({ state: 'Step1' }),
+        },
+      },
+      Step1: {
+        reaction: ({ dispatch }) => {
+          dispatch({ action: 'Next' });
+        },
+        effect: step1Effect,
+        actions: {
+          Next: () => ({ state: 'Step2' }),
+        },
+      },
+      Step2: {
+        effect: step2Effect,
+      },
+    },
+  });
+
+  const onEmit = jest.fn();
+  machine.subscribe(onEmit);
+
+  machine.dispatch({ action: 'Next' });
+  expect(onEmit).toHaveBeenCalledTimes(1);
+  expect(onEmit).toHaveBeenCalledWith({ state: 'Step2' });
+  expect(onEmit).not.toHaveBeenCalledWith({ state: 'Step1' });
+  expect(step1Effect).not.toHaveBeenCalled();
+  expect(step2Effect).toHaveBeenCalled();
 });

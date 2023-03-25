@@ -1,7 +1,7 @@
 import { ConfigGlobalEffect, Stachine } from '../src/mod';
 
 type BoolState = { state: 'On' } | { state: 'Off' } | { state: 'Error' };
-type BoolAction = { action: 'TurnOn' } | { action: 'TurnOff' } | { action: 'Toggle' } | { action: 'Error' };
+type BoolAction = { action: 'TurnOn' } | { action: 'TurnOff' } | { action: 'Toggle' };
 
 export function createBooleanMachine({
   debug,
@@ -16,7 +16,6 @@ export function createBooleanMachine({
     initialState: { state: 'Off' },
     debug,
     strict,
-    createErrorAction: () => ({ action: 'Error' }),
     createErrorState: () => ({ state: 'Error' }),
     effect: globalEffect,
     states: {
@@ -40,13 +39,12 @@ export function createBooleanMachine({
 }
 
 type HomeState = { state: 'Home' } | { state: 'Bed' } | { state: 'Work' } | { state: 'Error' };
-type HomeAction = { action: 'Commute' } | { action: 'Wake' } | { action: 'Sleep' } | { action: 'Error' };
+type HomeAction = { action: 'Commute' } | { action: 'Wake' } | { action: 'Sleep' };
 
 export function createHomeMachine({ debug }: { debug?: string } = {}) {
   const machine = Stachine<HomeState, HomeAction>({
     initialState: { state: 'Home' },
     debug,
-    createErrorAction: () => ({ action: 'Error' }),
     createErrorState: () => ({ state: 'Error' }),
     states: {
       Home: { actions: { Commute: () => ({ state: 'Work' }), Sleep: () => ({ state: 'Bed' }) } },

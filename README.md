@@ -8,11 +8,10 @@
 import { Stachine } from 'stachine';
 
 type State = { state: 'Home' } | { state: 'Bed' } | { state: 'Work' } | { state: 'Error' };
-type Action = { action: 'Commute' } | { action: 'Wake' } | { action: 'Sleep' } | { action: 'Error' };
+type Action = { action: 'Commute' } | { action: 'Wake' } | { action: 'Sleep' };
 
 const machine = Stachine<State, Action>({
   initialState: { state: 'Home' },
-  createErrorAction: () => ({ action: 'Error' }),
   createErrorState: () => ({ state: 'Error' }),
   states: {
     Home: {
