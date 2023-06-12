@@ -1,13 +1,14 @@
+import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { Stachine } from '../src/mod';
-import { createHomeMachine, createBooleanMachine } from './utils';
+import { createBooleanMachine, createHomeMachine } from './utils';
 
-let consoleWarnSpy = jest.spyOn(global.console, 'warn');
-let consoleErrorSpy = jest.spyOn(global.console, 'error');
+let consoleWarnSpy = vi.spyOn(global.console, 'warn');
+let consoleErrorSpy = vi.spyOn(global.console, 'error');
 
 beforeEach(() => {
-  consoleWarnSpy = jest.spyOn(global.console, 'warn');
+  consoleWarnSpy = vi.spyOn(global.console, 'warn');
   consoleWarnSpy.mockImplementation(() => {});
-  consoleErrorSpy = jest.spyOn(global.console, 'error');
+  consoleErrorSpy = vi.spyOn(global.console, 'error');
   consoleErrorSpy.mockImplementation(() => {});
 });
 
@@ -73,7 +74,7 @@ test('simple machine with listener', () => {
   });
 
   expect(machine.getState()).toEqual({ state: 'Home' });
-  const callback = jest.fn();
+  const callback = vi.fn();
   machine.subscribe(callback);
   machine.dispatch({ action: 'Commute' });
   expect(callback).toHaveBeenCalledTimes(1);
@@ -104,7 +105,7 @@ test('simple machine with initialState function', () => {
   });
 
   expect(machine.getState()).toEqual({ state: 'Home' });
-  const callback = jest.fn();
+  const callback = vi.fn();
   machine.subscribe(callback);
   machine.dispatch({ action: 'Commute' });
   expect(machine.getState()).toEqual({ state: 'Work' });
@@ -156,12 +157,14 @@ test('dispatch on destroyed machine should warn', () => {
   machine.destroy();
   machine.dispatch({ action: 'Commute' });
   expect(consoleWarnSpy).toHaveBeenCalledTimes(2);
-  expect(consoleWarnSpy).toHaveBeenCalledWith('[Stachine] Calling .dispatch on an already destroyed machine is a no-op');
+  expect(consoleWarnSpy).toHaveBeenCalledWith(
+    '[Stachine] Calling .dispatch on an already destroyed machine is a no-op'
+  );
 });
 
 test('global effect is executed', () => {
-  const cleanup = jest.fn();
-  const effect = jest.fn(() => cleanup);
+  const cleanup = vi.fn();
+  const effect = vi.fn(() => cleanup);
 
   const machine = createBooleanMachine({ globalEffect: effect });
 
@@ -175,7 +178,7 @@ test('global effect is executed', () => {
 });
 
 test('global effect no cleanup', () => {
-  const effect = jest.fn();
+  const effect = vi.fn();
 
   const machine = createBooleanMachine({ globalEffect: effect });
 
@@ -230,7 +233,7 @@ test('returning previous state should not call state listener', () => {
     },
   });
 
-  const onStateChange = jest.fn();
+  const onStateChange = vi.fn();
 
   machine.subscribe(onStateChange);
   expect(machine.getState()).toEqual({ state: 'Off' });
@@ -267,7 +270,7 @@ test('run effect on initial state', () => {
   type State = { state: 'Home' } | { state: 'Error' };
   type Action = never;
 
-  const effect = jest.fn();
+  const effect = vi.fn();
 
   const machine = Stachine<State, Action>({
     initialState: { state: 'Home' },
@@ -284,8 +287,8 @@ test('run effect with cleanup on initial state', () => {
   type State = { state: 'Home' } | { state: 'Error' };
   type Action = never;
 
-  const effectCleanup = jest.fn();
-  const effect = jest.fn(() => effectCleanup);
+  const effectCleanup = vi.fn();
+  const effect = vi.fn(() => effectCleanup);
 
   const machine = Stachine<State, Action>({
     initialState: { state: 'Home' },
@@ -304,7 +307,7 @@ test('run effect on state', () => {
   type State = { state: 'Home' } | { state: 'Work' } | { state: 'Error' };
   type Action = { action: 'Commute' };
 
-  const effect = jest.fn();
+  const effect = vi.fn();
 
   const machine = Stachine<State, Action>({
     initialState: { state: 'Home' },
@@ -327,8 +330,8 @@ test('cleanup effect on state', () => {
   type State = { state: 'Home' } | { state: 'Work' } | { state: 'Error' };
   type Action = { action: 'Commute' };
 
-  const effectCleanup = jest.fn();
-  const effect = jest.fn(() => effectCleanup);
+  const effectCleanup = vi.fn();
+  const effect = vi.fn(() => effectCleanup);
 
   const machine = Stachine<State, Action>({
     initialState: { state: 'Home' },
@@ -355,8 +358,8 @@ test('run cleanup and effect when transition to same state with rerunEffect', ()
   type State = { state: 'Main' } | { state: 'Error' };
   type Action = { action: 'Rerun' } | { action: 'SameRef' } | { action: 'Same' };
 
-  const effectCleanup = jest.fn();
-  const effect = jest.fn(() => effectCleanup);
+  const effectCleanup = vi.fn();
+  const effect = vi.fn(() => effectCleanup);
 
   const machine = Stachine<State, Action>({
     initialState: { state: 'Main' },
@@ -492,7 +495,7 @@ test('reaction should run on state', () => {
   type State = { state: 'Main' } | { state: 'Error' };
   type Action = { action: 'SameState' } | { action: 'SameRef' };
 
-  const reaction = jest.fn();
+  const reaction = vi.fn();
 
   const machine = Stachine<State, Action>({
     initialState: { state: 'Main' },
@@ -520,8 +523,8 @@ test('dispatch in reaction should not emit the intermediate state', () => {
   type State = { state: 'Init' } | { state: 'Step1' } | { state: 'Step2' } | { state: 'Error' };
   type Action = { action: 'Next' };
 
-  const step1Effect = jest.fn();
-  const step2Effect = jest.fn();
+  const step1Effect = vi.fn();
+  const step2Effect = vi.fn();
 
   const machine = Stachine<State, Action>({
     createErrorState: () => ({ state: 'Error' }),
@@ -548,7 +551,7 @@ test('dispatch in reaction should not emit the intermediate state', () => {
     },
   });
 
-  const onEmit = jest.fn();
+  const onEmit = vi.fn();
   machine.subscribe(onEmit);
 
   machine.dispatch({ action: 'Next' });

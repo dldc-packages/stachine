@@ -25,11 +25,15 @@ export type ReactionParams<CurrentState extends StateBase, Action extends Action
   dispatch: Dispatch<Action>;
 };
 
-export type Reaction<CurrentState extends StateBase, Action extends ActionBase> = (params: ReactionParams<CurrentState, Action>) => void;
+export type Reaction<CurrentState extends StateBase, Action extends ActionBase> = (
+  params: ReactionParams<CurrentState, Action>
+) => void;
 
-export type StateActionConfig<CurrentState extends StateBase, CurrentAction extends ActionBase, State extends StateBase> =
-  | false
-  | Transition<CurrentState, CurrentAction, State>;
+export type StateActionConfig<
+  CurrentState extends StateBase,
+  CurrentAction extends ActionBase,
+  State extends StateBase
+> = false | Transition<CurrentState, CurrentAction, State>;
 
 export type StateConfigActions<CurrentState extends StateBase, State extends StateBase, Action extends ActionBase> = {
   [A in Action['action']]?: StateActionConfig<CurrentState, Extract<Action, { action: A }>, State>;
@@ -45,7 +49,11 @@ export type StateConfig<CurrentState extends StateBase, State extends StateBase,
   reaction?: Reaction<CurrentState, Action>;
 };
 
-export type Transition<CurrentState extends StateBase, CurrentAction extends ActionBase, State extends StateBase> = (params: {
+export type Transition<
+  CurrentState extends StateBase,
+  CurrentAction extends ActionBase,
+  State extends StateBase
+> = (params: {
   state: CurrentState;
   action: CurrentAction;
   rerunEffect: (styate: CurrentState) => CurrentState;
@@ -249,7 +257,11 @@ export const Stachine = (() => {
       const shouldRunEffect = stateTypeChanged || forceEffectMap[prevState.state] === true;
       if (shouldRunEffect) {
         if (debug) {
-          console.log(`[${debug}]: Running effect for state ${state.state} (${stateTypeChanged ? 'state type changed' : 'force effect'})`);
+          console.log(
+            `[${debug}]: Running effect for state ${state.state} (${
+              stateTypeChanged ? 'state type changed' : 'force effect'
+            })`
+          );
         }
         runEffect();
       }
