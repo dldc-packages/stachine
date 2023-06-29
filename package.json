@@ -1,18 +1,18 @@
 {
-  "name": "stachine",
+  "name": "@dldc/stachine",
   "version": "2.0.0-1",
   "description": "A TypeScript state machine with events and effects",
   "keywords": [
     "state-machine",
     "typescript"
   ],
-  "homepage": "https://github.com/etienne-dldc/stachine#readme",
+  "homepage": "https://github.com/dldc-packages/stachine#readme",
   "bugs": {
-    "url": "https://github.com/etienne-dldc/stachine/issues"
+    "url": "https://github.com/dldc-packages/stachine/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/etienne-dldc/stachine.git"
+    "url": "git+https://github.com/dldc-packages/stachine.git"
   },
   "license": "MIT",
   "author": "Etienne Dldc <e.deladonchamps@gmail.com>",
