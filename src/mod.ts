@@ -1,5 +1,5 @@
-import { Erreur } from 'erreur';
-import { OnUnsubscribed, SubscribeMethod, Subscription, SubscriptionCallback, Unsubscribe } from 'suub';
+import { ErreurType } from '@dldc/erreur';
+import { OnUnsubscribed, SubscribeMethod, SubscriptionCallback, Suub, Unsubscribe } from '@dldc/pubsub';
 
 export type StateBase = { state: string };
 export type ActionBase = { action: string };
@@ -143,7 +143,7 @@ export const Stachine = (() => {
       });
     });
 
-    const sub = Subscription.create<State>();
+    const sub = Suub.createSubscription<State>();
     const dispatchQueue: Array<Action> = [];
     let isDispatching = false;
     let inTransition = false;
@@ -378,17 +378,32 @@ export const Stachine = (() => {
 })();
 
 export const StachineErreur = {
-  MaxRecursiveDispatchReached: Erreur.declare<{ limit: number }>(
+  MaxRecursiveDispatchReached: ErreurType.defineWithTransform(
     'MaxRecursiveDispatchReached',
-    ({ limit }) =>
-      `The maxRecursiveDispatch limit (${limit}) has been reached, did you emit() in a callback ? If this is expected you can use the maxRecursiveDispatch option to raise the limit`
-  ).withTransform((limit: number) => ({ limit })),
-  UnexpectedDispatchQueue: Erreur.declare<{ queue: ActionBase[] }>(
+    (limit: number): { limit: number } => ({ limit }),
+    (err, provider, { limit }) => {
+      return err
+        .with(provider)
+        .withMessage(
+          `The maxRecursiveDispatch limit (${limit}) has been reached, did you emit() in a callback ? If this is expected you can use the maxRecursiveDispatch option to raise the limit`
+        );
+    }
+  ),
+  UnexpectedDispatchQueue: ErreurType.defineWithTransform(
     'UnexpectedDispatchQueue',
-    () => `The dispatch queue is not empty after exiting dispatch loop, this is unexpected`
-  ).withTransform((queue: ActionBase[]) => ({ queue })),
-  DispatchInTransition: Erreur.declare<{ action: ActionBase; state: StateBase }>(
+    (queue: ActionBase[]) => ({ queue }),
+    (err, provider) => {
+      return err
+        .with(provider)
+        .withMessage(`The dispatch queue is not empty after exiting dispatch loop, this is unexpected`);
+    }
+  ),
+  DispatchInTransition: ErreurType.define<{ action: ActionBase; state: StateBase }>(
     'DispatchInTransition',
-    ({ action, state }) => `Cannot dispatch in a transition (in transition ${state.state} -> ${action.action})`
+    (err, provider, { action, state }) => {
+      return err
+        .with(provider)
+        .withMessage(`Cannot dispatch in a transition (in transition ${state.state} -> ${action.action})`);
+    }
   ),
 };

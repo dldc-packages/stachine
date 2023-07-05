@@ -42,8 +42,8 @@
     "typecheck:watch": "tsc --watch"
   },
   "dependencies": {
-    "erreur": "^2.1.0",
-    "suub": "^4.0.0"
+    "@dldc/erreur": "^3.0.6",
+    "@dldc/pubsub": "^5.2.0"
   },
   "devDependencies": {
     "@types/node": "^20.3.3",
