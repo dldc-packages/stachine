@@ -29,7 +29,7 @@ test('create a state machine without error', () => {
         Error: {},
         Init: {},
       },
-    })
+    }),
   ).not.toThrow();
 });
 
@@ -158,7 +158,7 @@ test('dispatch on destroyed machine should warn', () => {
   machine.dispatch({ action: 'Commute' });
   expect(consoleWarnSpy).toHaveBeenCalledTimes(2);
   expect(consoleWarnSpy).toHaveBeenCalledWith(
-    '[Stachine] Calling .dispatch on an already destroyed machine is a no-op'
+    '[Stachine] Calling .dispatch on an already destroyed machine is a no-op',
   );
 });
 

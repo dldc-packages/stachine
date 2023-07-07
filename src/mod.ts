@@ -17,7 +17,7 @@ export type EffectParams<CurrentState extends StateBase, Action extends ActionBa
 };
 
 export type Effect<CurrentState extends StateBase, Action extends ActionBase> = (
-  params: EffectParams<CurrentState, Action>
+  params: EffectParams<CurrentState, Action>,
 ) => Cleanup | void;
 
 export type ReactionParams<CurrentState extends StateBase, Action extends ActionBase> = {
@@ -26,13 +26,13 @@ export type ReactionParams<CurrentState extends StateBase, Action extends Action
 };
 
 export type Reaction<CurrentState extends StateBase, Action extends ActionBase> = (
-  params: ReactionParams<CurrentState, Action>
+  params: ReactionParams<CurrentState, Action>,
 ) => void;
 
 export type StateActionConfig<
   CurrentState extends StateBase,
   CurrentAction extends ActionBase,
-  State extends StateBase
+  State extends StateBase,
 > = false | Transition<CurrentState, CurrentAction, State>;
 
 export type StateConfigActions<CurrentState extends StateBase, State extends StateBase, Action extends ActionBase> = {
@@ -52,7 +52,7 @@ export type StateConfig<CurrentState extends StateBase, State extends StateBase,
 export type Transition<
   CurrentState extends StateBase,
   CurrentAction extends ActionBase,
-  State extends StateBase
+  State extends StateBase,
 > = (params: {
   state: CurrentState;
   action: CurrentAction;
@@ -65,7 +65,7 @@ export type GlobalEffectParams<States extends StateBase, Action extends ActionBa
 };
 
 export type ConfigGlobalEffect<States extends StateBase, Action extends ActionBase> = (
-  params: GlobalEffectParams<States, Action>
+  params: GlobalEffectParams<States, Action>,
 ) => Cleanup | void;
 
 export type Config<State extends StateBase, Action extends ActionBase> = {
@@ -260,7 +260,7 @@ export const Stachine = (() => {
           console.log(
             `[${debug}]: Running effect for state ${state.state} (${
               stateTypeChanged ? 'state type changed' : 'force effect'
-            })`
+            })`,
           );
         }
         runEffect();
@@ -385,9 +385,9 @@ export const StachineErreur = {
       return err
         .with(provider)
         .withMessage(
-          `The maxRecursiveDispatch limit (${limit}) has been reached, did you emit() in a callback ? If this is expected you can use the maxRecursiveDispatch option to raise the limit`
+          `The maxRecursiveDispatch limit (${limit}) has been reached, did you emit() in a callback ? If this is expected you can use the maxRecursiveDispatch option to raise the limit`,
         );
-    }
+    },
   ),
   UnexpectedDispatchQueue: ErreurType.defineWithTransform(
     'UnexpectedDispatchQueue',
@@ -396,7 +396,7 @@ export const StachineErreur = {
       return err
         .with(provider)
         .withMessage(`The dispatch queue is not empty after exiting dispatch loop, this is unexpected`);
-    }
+    },
   ),
   DispatchInTransition: ErreurType.define<{ action: ActionBase; state: StateBase }>(
     'DispatchInTransition',
@@ -404,6 +404,6 @@ export const StachineErreur = {
       return err
         .with(provider)
         .withMessage(`Cannot dispatch in a transition (in transition ${state.state} -> ${action.action})`);
-    }
+    },
   ),
 };
