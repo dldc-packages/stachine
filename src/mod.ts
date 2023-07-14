@@ -1,5 +1,6 @@
 import { ErreurType } from '@dldc/erreur';
-import { OnUnsubscribed, SubscribeMethod, SubscriptionCallback, Suub, Unsubscribe } from '@dldc/pubsub';
+import type { OnUnsubscribed, SubscribeMethod, SubscriptionCallback, Unsubscribe } from '@dldc/pubsub';
+import { Suub } from '@dldc/pubsub';
 
 export type StateBase = { state: string };
 export type ActionBase = { action: string };

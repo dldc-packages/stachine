@@ -1,4 +1,5 @@
-import { ConfigGlobalEffect, Stachine } from '../src/mod';
+import type { ConfigGlobalEffect } from '../src/mod';
+import { Stachine } from '../src/mod';
 
 type BoolState = { state: 'On' } | { state: 'Off' } | { state: 'Error' };
 type BoolAction = { action: 'TurnOn' } | { action: 'TurnOff' } | { action: 'Toggle' };
