@@ -1,4 +1,4 @@
-import type { IKey } from '@dldc/erreur';
+import type { TKey } from '@dldc/erreur';
 import { Erreur, Key } from '@dldc/erreur';
 import type { OnUnsubscribed, SubscribeMethod, SubscriptionCallback, Unsubscribe } from '@dldc/pubsub';
 import { Suub } from '@dldc/pubsub';
@@ -380,10 +380,9 @@ export const Stachine = (() => {
 })();
 
 export const StachineErreur = (() => {
-  const MaxRecursiveDispatchReachedKey: IKey<{ limit: number }, false> = Key.create('MaxRecursiveDispatchReached');
-  const UnexpectedDispatchQueueKey: IKey<{ queue: ActionBase[] }, false> = Key.create('UnexpectedDispatchQueue');
-  const DispatchInTransitionKey: IKey<{ action: ActionBase; state: StateBase }, false> =
-    Key.create('DispatchInTransition');
+  const MaxRecursiveDispatchReachedKey: TKey<{ limit: number }> = Key.create('MaxRecursiveDispatchReached');
+  const UnexpectedDispatchQueueKey: TKey<{ queue: ActionBase[] }> = Key.create('UnexpectedDispatchQueue');
+  const DispatchInTransitionKey: TKey<{ action: ActionBase; state: StateBase }> = Key.create('DispatchInTransition');
 
   return {
     MaxRecursiveDispatchReached: {
