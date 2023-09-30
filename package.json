@@ -1,6 +1,6 @@
 {
   "name": "@dldc/stachine",
-  "version": "2.1.2",
+  "version": "2.1.3",
   "description": "A TypeScript state machine with events and effects",
   "keywords": [
     "state-machine",
