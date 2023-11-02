@@ -2,10 +2,14 @@
 
 > A TypeScript state machine with events and effects
 
+```
+npm install @dldc/stachine
+```
+
 ## Gist
 
 ```ts
-import { Stachine } from 'stachine';
+import { Stachine } from '@dldc/stachine';
 
 type State = { state: 'Home' } | { state: 'Bed' } | { state: 'Work' } | { state: 'Error' };
 type Action = { action: 'Commute' } | { action: 'Wake' } | { action: 'Sleep' };

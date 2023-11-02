@@ -1,7 +1,7 @@
 import type { TKey } from '@dldc/erreur';
 import { Erreur, Key } from '@dldc/erreur';
 import type { OnUnsubscribed, SubscribeMethod, SubscriptionCallback, Unsubscribe } from '@dldc/pubsub';
-import { Suub } from '@dldc/pubsub';
+import { PubSub } from '@dldc/pubsub';
 
 export type StateBase = { state: string };
 export type ActionBase = { action: string };
@@ -145,7 +145,7 @@ export const Stachine = (() => {
       });
     });
 
-    const sub = Suub.createSubscription<State>();
+    const sub = PubSub.createSubscription<State>();
     const dispatchQueue: Array<Action> = [];
     let isDispatching = false;
     let inTransition = false;
@@ -194,7 +194,7 @@ export const Stachine = (() => {
         return;
       }
       if (inTransition) {
-        throw StachineErreur.DispatchInTransition.create(action, state);
+        throw StachineErreur.DispatchInTransition(action, state);
       }
       dispatchQueue.push(action);
       if (isDispatching) {
@@ -238,11 +238,11 @@ export const Stachine = (() => {
         runReaction();
       }
       if (dispatchQueueSafe <= 0) {
-        throw StachineErreur.MaxRecursiveDispatchReached.create(maxRecursiveDispatch);
+        throw StachineErreur.MaxRecursiveDispatchReached(maxRecursiveDispatch);
       }
       if (dispatchQueue.length > 0) {
         // if there is still actions in the queue, this is not expected
-        throw StachineErreur.UnexpectedDispatchQueue.create(dispatchQueue);
+        throw StachineErreur.UnexpectedDispatchQueue(dispatchQueue);
       }
       isDispatching = false;
       if (state === prevState) {
@@ -379,35 +379,28 @@ export const Stachine = (() => {
   }
 })();
 
-export const StachineErreur = (() => {
-  const MaxRecursiveDispatchReachedKey: TKey<{ limit: number }> = Key.create('MaxRecursiveDispatchReached');
-  const UnexpectedDispatchQueueKey: TKey<{ queue: ActionBase[] }> = Key.create('UnexpectedDispatchQueue');
-  const DispatchInTransitionKey: TKey<{ action: ActionBase; state: StateBase }> = Key.create('DispatchInTransition');
+export type TStachineErreurData =
+  | { kind: 'MaxRecursiveDispatchReached'; limit: number }
+  | { kind: 'UnexpectedDispatchQueue'; queue: ActionBase[] }
+  | { kind: 'DispatchInTransition'; action: ActionBase; state: StateBase };
 
-  return {
-    MaxRecursiveDispatchReached: {
-      Key: MaxRecursiveDispatchReachedKey,
-      create(limit: number) {
-        return Erreur.createWith(MaxRecursiveDispatchReachedKey, { limit }).withMessage(
-          `The maxRecursiveDispatch limit (${limit}) has been reached, did you emit() in a callback ? If this is expected you can use the maxRecursiveDispatch option to raise the limit`,
-        );
-      },
-    },
-    UnexpectedDispatchQueue: {
-      Key: UnexpectedDispatchQueueKey,
-      create(queue: ActionBase[]) {
-        return Erreur.createWith(UnexpectedDispatchQueueKey, { queue }).withMessage(
-          `The dispatch queue is not empty after exiting dispatch loop, this is unexpected`,
-        );
-      },
-    },
-    DispatchInTransition: {
-      Key: DispatchInTransitionKey,
-      create(action: ActionBase, state: StateBase) {
-        return Erreur.createWith(DispatchInTransitionKey, { action, state }).withMessage(
-          `Cannot dispatch in a transition (in transition ${state.state} -> ${action.action})`,
-        );
-      },
-    },
-  };
-})();
+export const StachineErreurKey: TKey<TStachineErreurData, false> = Key.create<TStachineErreurData>('StachineErreur');
+
+export const StachineErreur = {
+  MaxRecursiveDispatchReached: (limit: number) =>
+    Erreur.create(
+      new Error(
+        `The maxRecursiveDispatch limit (${limit}) has been reached, did you emit() in a callback ? If this is expected you can use the maxRecursiveDispatch option to raise the limit`,
+      ),
+    )
+      .withName('MaxRecursiveDispatchReached')
+      .with(StachineErreurKey.Provider({ kind: 'MaxRecursiveDispatchReached', limit })),
+  UnexpectedDispatchQueue: (queue: ActionBase[]) =>
+    Erreur.create(new Error(`The dispatch queue is not empty after exiting dispatch loop, this is unexpected`))
+      .withName('UnexpectedDispatchQueue')
+      .with(StachineErreurKey.Provider({ kind: 'UnexpectedDispatchQueue', queue })),
+  DispatchInTransition: (action: ActionBase, state: StateBase) =>
+    Erreur.create(new Error(`Cannot dispatch in a transition (in transition ${state.state} -> ${action.action})`))
+      .withName('DispatchInTransition')
+      .with(StachineErreurKey.Provider({ kind: 'DispatchInTransition', action, state })),
+};
