@@ -1,7 +1,6 @@
-import type { TKey } from '@dldc/erreur';
-import { Erreur, Key } from '@dldc/erreur';
-import type { OnUnsubscribed, SubscribeMethod, SubscriptionCallback, Unsubscribe } from '@dldc/pubsub';
-import { PubSub } from '@dldc/pubsub';
+import { createErreurStore } from '@dldc/erreur';
+import type { SubscribeMethod, TOnUnsubscribed, TSubscriptionCallback, TUnsubscribe } from '@dldc/pubsub';
+import { createSubscription } from '@dldc/pubsub';
 
 export type StateBase = { state: string };
 export type ActionBase = { action: string };
@@ -145,7 +144,7 @@ export const Stachine = (() => {
       });
     });
 
-    const sub = PubSub.createSubscription<State>();
+    const sub = createSubscription<State>();
     const dispatchQueue: Array<Action> = [];
     let isDispatching = false;
     let inTransition = false;
@@ -194,7 +193,7 @@ export const Stachine = (() => {
         return;
       }
       if (inTransition) {
-        throw StachineErreur.DispatchInTransition(action, state);
+        return throwDispatchInTransition(action, state);
       }
       dispatchQueue.push(action);
       if (isDispatching) {
@@ -222,7 +221,7 @@ export const Stachine = (() => {
         if (nextState === state) {
           if (debug) {
             console.groupCollapsed(`[${debug}]: ${prevState.state} + ${action.action} => [SAME_STATE]`);
-            console.log({ state: prevState, action });
+            console.info({ state: prevState, action });
             console.groupEnd();
           }
           break;
@@ -231,18 +230,18 @@ export const Stachine = (() => {
         state = nextState;
         if (debug) {
           console.groupCollapsed(`[${debug}]: ${prevState.state} + ${action.action} => ${nextState.state}`);
-          console.log({ prevState, action, state });
+          console.info({ prevState, action, state });
           console.groupEnd();
         }
         // run reaction for the new state
         runReaction();
       }
       if (dispatchQueueSafe <= 0) {
-        throw StachineErreur.MaxRecursiveDispatchReached(maxRecursiveDispatch);
+        return throwMaxRecursiveDispatchReached(maxRecursiveDispatch);
       }
       if (dispatchQueue.length > 0) {
         // if there is still actions in the queue, this is not expected
-        throw StachineErreur.UnexpectedDispatchQueue(dispatchQueue);
+        return throwUnexpectedDispatchQueue(dispatchQueue);
       }
       isDispatching = false;
       if (state === prevState) {
@@ -251,7 +250,7 @@ export const Stachine = (() => {
       }
       // state changed
       if (debug) {
-        console.log(`[${debug}]: Emitting state ${state.state}`);
+        console.info(`[${debug}]: Emitting state ${state.state}`);
       }
       sub.emit(state);
       // run effect if state type changed or if force effect
@@ -259,7 +258,7 @@ export const Stachine = (() => {
       const shouldRunEffect = stateTypeChanged || forceEffectMap[prevState.state] === true;
       if (shouldRunEffect) {
         if (debug) {
-          console.log(
+          console.info(
             `[${debug}]: Running effect for state ${state.state} (${
               stateTypeChanged ? 'state type changed' : 'force effect'
             })`,
@@ -283,7 +282,7 @@ export const Stachine = (() => {
       const reaction = states[stateKey].reaction;
       if (reaction) {
         if (debug) {
-          console.log(`[${debug}]: Rining reaction of ${stateKey}`);
+          console.info(`[${debug}]: Rining reaction of ${stateKey}`);
         }
         reaction({ state: state as any, dispatch });
       }
@@ -298,7 +297,7 @@ export const Stachine = (() => {
         return nextState;
       } catch (error) {
         if (debug) {
-          console.log(`[${debug}]: ${prevState.state} + ${action.action} => XX ERROR XX`);
+          console.info(`[${debug}]: ${prevState.state} + ${action.action} => XX ERROR XX`);
         }
         inTransition = false;
         return createErrorState(error, prevState);
@@ -312,7 +311,7 @@ export const Stachine = (() => {
       currentStateCleanup = null;
     }
 
-    function watch(callback: SubscriptionCallback<State>, onUnsubscribe?: OnUnsubscribed): Unsubscribe {
+    function watch(callback: TSubscriptionCallback<State>, onUnsubscribe?: TOnUnsubscribed): TUnsubscribe {
       if (checkDestroyed('watch', { state })) {
         return () => {};
       }
@@ -384,23 +383,37 @@ export type TStachineErreurData =
   | { kind: 'UnexpectedDispatchQueue'; queue: ActionBase[] }
   | { kind: 'DispatchInTransition'; action: ActionBase; state: StateBase };
 
-export const StachineErreurKey: TKey<TStachineErreurData, false> = Key.create<TStachineErreurData>('StachineErreur');
+const StachineErreurInternal = createErreurStore<TStachineErreurData>();
 
-export const StachineErreur = {
-  MaxRecursiveDispatchReached: (limit: number) =>
-    Erreur.create(
-      new Error(
-        `The maxRecursiveDispatch limit (${limit}) has been reached, did you emit() in a callback ? If this is expected you can use the maxRecursiveDispatch option to raise the limit`,
-      ),
-    )
-      .withName('MaxRecursiveDispatchReached')
-      .with(StachineErreurKey.Provider({ kind: 'MaxRecursiveDispatchReached', limit })),
-  UnexpectedDispatchQueue: (queue: ActionBase[]) =>
-    Erreur.create(new Error(`The dispatch queue is not empty after exiting dispatch loop, this is unexpected`))
-      .withName('UnexpectedDispatchQueue')
-      .with(StachineErreurKey.Provider({ kind: 'UnexpectedDispatchQueue', queue })),
-  DispatchInTransition: (action: ActionBase, state: StateBase) =>
-    Erreur.create(new Error(`Cannot dispatch in a transition (in transition ${state.state} -> ${action.action})`))
-      .withName('DispatchInTransition')
-      .with(StachineErreurKey.Provider({ kind: 'DispatchInTransition', action, state })),
-};
+export const StachineErreur = StachineErreurInternal.asReadonly;
+
+function throwMaxRecursiveDispatchReached(limit: number): never {
+  return StachineErreurInternal.setAndThrow(
+    `The maxRecursiveDispatch limit (${limit}) has been reached, did you emit() in a callback ? If this is expected you can use the maxRecursiveDispatch option to raise the limit`,
+    {
+      kind: 'MaxRecursiveDispatchReached',
+      limit,
+    },
+  );
+}
+
+function throwUnexpectedDispatchQueue(queue: ActionBase[]): never {
+  return StachineErreurInternal.setAndThrow(
+    `The dispatch queue is not empty after exiting dispatch loop, this is unexpected`,
+    {
+      kind: 'UnexpectedDispatchQueue',
+      queue,
+    },
+  );
+}
+
+function throwDispatchInTransition(action: ActionBase, state: StateBase): never {
+  return StachineErreurInternal.setAndThrow(
+    `Cannot dispatch in a transition (in transition ${state.state} -> ${action.action})`,
+    {
+      kind: 'DispatchInTransition',
+      action,
+      state,
+    },
+  );
+}

@@ -561,3 +561,30 @@ test('dispatch in reaction should not emit the intermediate state', () => {
   expect(step1Effect).not.toHaveBeenCalled();
   expect(step2Effect).toHaveBeenCalled();
 });
+
+test('dispatch in transition should throw', () => {
+  type State = { state: 'Main' } | { state: 'Error' };
+  type Action = { action: 'Next' };
+
+  const machine = Stachine<State, Action>({
+    initialState: { state: 'Main' },
+    states: {
+      Main: {
+        actions: {
+          Next: ({ state }) => {
+            machine.dispatch({ action: 'Next' });
+            return state;
+          },
+        },
+      },
+      Error: {},
+    },
+    createErrorState: (error) => {
+      throw error;
+    },
+  });
+
+  expect(() => machine.dispatch({ action: 'Next' })).toThrowError(
+    'Cannot dispatch in a transition (in transition Main -> Next)',
+  );
+});
