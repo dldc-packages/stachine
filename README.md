@@ -9,29 +9,31 @@ npm install @dldc/stachine
 ## Gist
 
 ```ts
-import { Stachine } from '@dldc/stachine';
+import { createStachine } from "@dldc/stachine";
 
-type State = { state: 'Home' } | { state: 'Bed' } | { state: 'Work' } | { state: 'Error' };
-type Action = { action: 'Commute' } | { action: 'Wake' } | { action: 'Sleep' };
+type State = { state: "Home" } | { state: "Bed" } | { state: "Work" } | {
+  state: "Error";
+};
+type Action = { action: "Commute" } | { action: "Wake" } | { action: "Sleep" };
 
-const machine = Stachine<State, Action>({
-  initialState: { state: 'Home' },
-  createErrorState: () => ({ state: 'Error' }),
+const machine = createStachine<State, Action>({
+  initialState: { state: "Home" },
+  createErrorState: () => ({ state: "Error" }),
   states: {
     Home: {
       actions: {
-        Commute: () => ({ state: 'Work' }),
-        Sleep: () => ({ state: 'Bed' }),
+        Commute: () => ({ state: "Work" }),
+        Sleep: () => ({ state: "Bed" }),
       },
     },
     Work: {
       actions: {
-        Commute: () => ({ state: 'Home' }),
+        Commute: () => ({ state: "Home" }),
       },
     },
     Bed: {
       actions: {
-        Wake: () => ({ state: 'Home' }),
+        Wake: () => ({ state: "Home" }),
       },
     },
     Error: {},

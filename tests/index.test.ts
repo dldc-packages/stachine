@@ -1,376 +1,400 @@
-import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import { Stachine } from '../src/mod';
-import { createBooleanMachine, createHomeMachine } from './utils';
+// deno-lint-ignore-file no-explicit-any
 
-let consoleWarnSpy = vi.spyOn(global.console, 'warn');
-let consoleErrorSpy = vi.spyOn(global.console, 'error');
+import { expect, fn } from "$std/expect/mod.ts";
+import { createStachine, isStachine, type TConsole } from "../mod.ts";
+import { createBooleanMachine, createHomeMachine } from "./utils.ts";
 
-beforeEach(() => {
-  consoleWarnSpy = vi.spyOn(global.console, 'warn');
-  consoleWarnSpy.mockImplementation(() => {});
-  consoleErrorSpy = vi.spyOn(global.console, 'error');
-  consoleErrorSpy.mockImplementation(() => {});
-});
+const fnBase = () => fn() as (...args: any[]) => any;
 
-afterEach(() => {
-  consoleWarnSpy.mockRestore();
-  consoleErrorSpy.mockRestore();
-});
+function createMockConsole(): TConsole {
+  return {
+    error: fnBase(),
+    warn: fnBase(),
+    info: fnBase(),
+    groupCollapsed: fnBase(),
+    groupEnd: fnBase(),
+  };
+}
 
-test('create a state machine without error', () => {
-  type State = { state: 'Init' } | { state: 'Error'; error: unknown };
-  type Action = { action: 'Hey' };
+Deno.test("create a state machine without error", () => {
+  type State = { state: "Init" } | { state: "Error"; error: unknown };
+  type Action = { action: "Hey" };
 
   expect(() =>
-    Stachine<State, Action>({
-      createErrorState: (err) => ({ state: 'Error', error: err }),
-      initialState: { state: 'Init' },
+    createStachine<State, Action>({
+      createErrorState: (err) => ({ state: "Error", error: err }),
+      initialState: { state: "Init" },
       states: {
         Error: {},
         Init: {},
       },
-    }),
+    })
   ).not.toThrow();
 });
 
-test('simple machine', () => {
-  const machine = createHomeMachine();
+Deno.test("simple machine", () => {
+  const consoleMock = createMockConsole();
+  const machine = createHomeMachine(consoleMock);
 
-  expect(machine.getState()).toEqual({ state: 'Home' });
-  machine.dispatch({ action: 'Commute' });
-  expect(machine.getState()).toEqual({ state: 'Work' });
-  machine.dispatch({ action: 'Commute' });
-  expect(machine.getState()).toEqual({ state: 'Home' });
-  machine.dispatch({ action: 'Sleep' });
-  expect(machine.getState()).toEqual({ state: 'Bed' });
+  expect(machine.getState()).toEqual({ state: "Home" });
+  machine.dispatch({ action: "Commute" });
+  expect(machine.getState()).toEqual({ state: "Work" });
+  machine.dispatch({ action: "Commute" });
+  expect(machine.getState()).toEqual({ state: "Home" });
+  machine.dispatch({ action: "Sleep" });
+  expect(machine.getState()).toEqual({ state: "Bed" });
 });
 
-test('calling Stachine.is', () => {
-  const machine = createHomeMachine();
+Deno.test("calling isStachine", () => {
+  const consoleMock = createMockConsole();
+  const machine = createHomeMachine(consoleMock);
 
-  expect(Stachine.is(machine)).toBe(true);
-  expect(Stachine.is({})).toBe(false);
-  expect(Stachine.is(undefined)).toBe(false);
+  expect(isStachine(machine)).toBe(true);
+  expect(isStachine({})).toBe(false);
+  expect(isStachine(undefined)).toBe(false);
 });
 
-test('simple machine with listener', () => {
-  type State = { state: 'Home' } | { state: 'Bed' } | { state: 'Work' } | { state: 'Error' };
-  type Action = { action: 'Commute' } | { action: 'Wake' } | { action: 'Sleep' };
+Deno.test("simple machine with listener", () => {
+  type State = { state: "Home" } | { state: "Bed" } | { state: "Work" } | {
+    state: "Error";
+  };
+  type Action = { action: "Commute" } | { action: "Wake" } | {
+    action: "Sleep";
+  };
 
-  const machine = Stachine<State, Action>({
-    initialState: { state: 'Home' },
-    createErrorState: () => ({ state: 'Error' }),
+  const machine = createStachine<State, Action>({
+    initialState: { state: "Home" },
+    createErrorState: () => ({ state: "Error" }),
     states: {
       Home: {
         actions: {
-          Commute: () => ({ state: 'Work' }),
-          Sleep: () => ({ state: 'Bed' }),
+          Commute: () => ({ state: "Work" }),
+          Sleep: () => ({ state: "Bed" }),
         },
       },
-      Work: { actions: { Commute: () => ({ state: 'Home' }) } },
-      Bed: { actions: { Wake: () => ({ state: 'Home' }) } },
+      Work: { actions: { Commute: () => ({ state: "Home" }) } },
+      Bed: { actions: { Wake: () => ({ state: "Home" }) } },
       Error: {},
     },
   });
 
-  expect(machine.getState()).toEqual({ state: 'Home' });
-  const callback = vi.fn();
+  expect(machine.getState()).toEqual({ state: "Home" });
+  const callback = fnBase();
   machine.subscribe(callback);
-  machine.dispatch({ action: 'Commute' });
+  machine.dispatch({ action: "Commute" });
   expect(callback).toHaveBeenCalledTimes(1);
-  expect(callback).toHaveBeenCalledWith({ state: 'Work' });
-  callback.mockClear();
-  machine.dispatch({ action: 'Sleep' });
-  expect(callback).not.toHaveBeenCalled();
+  expect(callback).toHaveBeenCalledWith({ state: "Work" });
+  machine.dispatch({ action: "Sleep" });
+  expect(callback).toHaveBeenCalledTimes(1);
 });
 
-test('simple machine with initialState function', () => {
-  type State = { state: 'Home' } | { state: 'Bed' } | { state: 'Work' } | { state: 'Error' };
-  type Action = { action: 'Commute' } | { action: 'Wake' } | { action: 'Sleep' };
+Deno.test("simple machine with initialState function", () => {
+  type State = { state: "Home" } | { state: "Bed" } | { state: "Work" } | {
+    state: "Error";
+  };
+  type Action = { action: "Commute" } | { action: "Wake" } | {
+    action: "Sleep";
+  };
 
-  const machine = Stachine<State, Action>({
-    initialState: { state: 'Home' },
-    createErrorState: () => ({ state: 'Error' }),
+  const machine = createStachine<State, Action>({
+    initialState: { state: "Home" },
+    createErrorState: () => ({ state: "Error" }),
     states: {
       Home: {
         actions: {
-          Commute: () => ({ state: 'Work' }),
-          Sleep: () => ({ state: 'Bed' }),
+          Commute: () => ({ state: "Work" }),
+          Sleep: () => ({ state: "Bed" }),
         },
       },
-      Work: { actions: { Commute: () => ({ state: 'Home' }) } },
-      Bed: { actions: { Wake: () => ({ state: 'Home' }) } },
+      Work: { actions: { Commute: () => ({ state: "Home" }) } },
+      Bed: { actions: { Wake: () => ({ state: "Home" }) } },
       Error: {},
     },
   });
 
-  expect(machine.getState()).toEqual({ state: 'Home' });
-  const callback = vi.fn();
+  expect(machine.getState()).toEqual({ state: "Home" });
+  const callback = fnBase();
   machine.subscribe(callback);
-  machine.dispatch({ action: 'Commute' });
-  expect(machine.getState()).toEqual({ state: 'Work' });
+  machine.dispatch({ action: "Commute" });
+  expect(machine.getState()).toEqual({ state: "Work" });
   expect(callback).toHaveBeenCalledTimes(1);
-  expect(callback).toHaveBeenCalledWith({ state: 'Work' });
-  callback.mockClear();
-  machine.dispatch({ action: 'Sleep' });
-  expect(callback).not.toHaveBeenCalled();
+  expect(callback).toHaveBeenCalledWith({ state: "Work" });
+  machine.dispatch({ action: "Sleep" });
+  expect(callback).toHaveBeenCalledTimes(1);
 });
 
-test('simple machine with object handler', () => {
-  const machine = createHomeMachine();
+Deno.test("simple machine with object handler", () => {
+  const consoleMock = createMockConsole();
+  const machine = createHomeMachine(consoleMock);
 
-  expect(machine.getState()).toEqual({ state: 'Home' });
-  machine.dispatch({ action: 'Wake' });
-  expect(machine.getState()).toEqual({ state: 'Home' });
-  machine.dispatch({ action: 'Commute' });
-  expect(machine.getState()).toEqual({ state: 'Work' });
-  machine.dispatch({ action: 'Commute' });
-  expect(machine.getState()).toEqual({ state: 'Home' });
-  machine.dispatch({ action: 'Sleep' });
-  expect(machine.getState()).toEqual({ state: 'Bed' });
-  machine.dispatch({ action: 'Sleep' });
-  expect(machine.getState()).toEqual({ state: 'Bed' });
+  expect(machine.getState()).toEqual({ state: "Home" });
+  machine.dispatch({ action: "Wake" });
+  expect(machine.getState()).toEqual({ state: "Home" });
+  machine.dispatch({ action: "Commute" });
+  expect(machine.getState()).toEqual({ state: "Work" });
+  machine.dispatch({ action: "Commute" });
+  expect(machine.getState()).toEqual({ state: "Home" });
+  machine.dispatch({ action: "Sleep" });
+  expect(machine.getState()).toEqual({ state: "Bed" });
+  machine.dispatch({ action: "Sleep" });
+  expect(machine.getState()).toEqual({ state: "Bed" });
 });
 
-test('simple machine with object handler', () => {
-  const machine = createHomeMachine();
+Deno.test("simple machine with object handler", () => {
+  const consoleMock = createMockConsole();
+  const machine = createHomeMachine(consoleMock);
 
-  expect(machine.getState()).toEqual({ state: 'Home' });
-  machine.dispatch({ action: 'Wake' });
-  expect(machine.getState()).toEqual({ state: 'Home' });
-  machine.dispatch({ action: 'Commute' });
-  expect(machine.getState()).toEqual({ state: 'Work' });
-  machine.dispatch({ action: 'Commute' });
-  expect(machine.getState()).toEqual({ state: 'Home' });
-  machine.dispatch({ action: 'Sleep' });
-  expect(machine.getState()).toEqual({ state: 'Bed' });
-  machine.dispatch({ action: 'Sleep' });
-  expect(machine.getState()).toEqual({ state: 'Bed' });
+  expect(machine.getState()).toEqual({ state: "Home" });
+  machine.dispatch({ action: "Wake" });
+  expect(machine.getState()).toEqual({ state: "Home" });
+  machine.dispatch({ action: "Commute" });
+  expect(machine.getState()).toEqual({ state: "Work" });
+  machine.dispatch({ action: "Commute" });
+  expect(machine.getState()).toEqual({ state: "Home" });
+  machine.dispatch({ action: "Sleep" });
+  expect(machine.getState()).toEqual({ state: "Bed" });
+  machine.dispatch({ action: "Sleep" });
+  expect(machine.getState()).toEqual({ state: "Bed" });
 });
 
-test('dispatch on destroyed machine should warn', () => {
-  const machine = createHomeMachine();
+Deno.test("dispatch on destroyed machine should warn", () => {
+  const consoleMock = createMockConsole();
+  const machine = createHomeMachine(consoleMock);
 
-  expect(machine.getState()).toEqual({ state: 'Home' });
-  machine.dispatch({ action: 'Commute' });
-  expect(machine.getState()).toEqual({ state: 'Work' });
+  expect(machine.getState()).toEqual({ state: "Home" });
+  machine.dispatch({ action: "Commute" });
+  expect(machine.getState()).toEqual({ state: "Work" });
   machine.destroy();
-  machine.dispatch({ action: 'Commute' });
-  expect(consoleWarnSpy).toHaveBeenCalledTimes(2);
-  expect(consoleWarnSpy).toHaveBeenCalledWith(
-    '[Stachine] Calling .dispatch on an already destroyed machine is a no-op',
+  machine.dispatch({ action: "Commute" });
+  expect(consoleMock.warn).toHaveBeenCalledTimes(2);
+  expect(consoleMock.warn).toHaveBeenCalledWith(
+    "[Stachine] Calling .dispatch on an already destroyed machine is a no-op",
   );
 });
 
-test('global effect is executed', () => {
-  const cleanup = vi.fn();
-  const effect = vi.fn(() => cleanup);
+Deno.test("global effect is executed", () => {
+  const cleanup = fnBase();
+  const effect = fn(() => cleanup) as () => void;
 
-  const machine = createBooleanMachine({ globalEffect: effect });
+  const consoleMock = createMockConsole();
+  const machine = createBooleanMachine(consoleMock, { globalEffect: effect });
 
   expect(effect).toHaveBeenCalled();
   expect(cleanup).not.toHaveBeenCalled();
-  expect(machine.getState()).toEqual({ state: 'Off' });
-  machine.dispatch({ action: 'Toggle' });
-  expect(machine.getState()).toEqual({ state: 'On' });
+  expect(machine.getState()).toEqual({ state: "Off" });
+  machine.dispatch({ action: "Toggle" });
+  expect(machine.getState()).toEqual({ state: "On" });
   machine.destroy();
   expect(cleanup).toHaveBeenCalled();
 });
 
-test('global effect no cleanup', () => {
-  const effect = vi.fn();
+Deno.test("global effect no cleanup", () => {
+  const effect = fnBase();
 
-  const machine = createBooleanMachine({ globalEffect: effect });
+  const consoleMock = createMockConsole();
+  const machine = createBooleanMachine(consoleMock, { globalEffect: effect });
 
   expect(effect).toHaveBeenCalled();
-  expect(machine.getState()).toEqual({ state: 'Off' });
-  machine.dispatch({ action: 'Toggle' });
-  expect(machine.getState()).toEqual({ state: 'On' });
+  expect(machine.getState()).toEqual({ state: "Off" });
+  machine.dispatch({ action: "Toggle" });
+  expect(machine.getState()).toEqual({ state: "On" });
   machine.destroy();
 });
 
-test('unhandled transitions should be ignore if not strict', () => {
-  const machine = createBooleanMachine();
+Deno.test("unhandled transitions should be ignore if not strict", () => {
+  const consoleMock = createMockConsole();
+  const machine = createBooleanMachine(consoleMock);
 
-  expect(machine.getState()).toEqual({ state: 'Off' });
-  machine.dispatch({ action: 'TurnOff' });
-  expect(consoleErrorSpy).not.toHaveBeenCalled();
-  expect(consoleWarnSpy).not.toHaveBeenCalled();
+  expect(machine.getState()).toEqual({ state: "Off" });
+  machine.dispatch({ action: "TurnOff" });
+  expect(consoleMock.error).not.toHaveBeenCalled();
+  expect(consoleMock.warn).not.toHaveBeenCalled();
 });
 
-test('unhandled transitions should console.error when strict', () => {
-  const machine = createBooleanMachine({ strict: true });
+Deno.test("unhandled transitions should console.error when strict", () => {
+  const consoleMock = createMockConsole();
+  const machine = createBooleanMachine(consoleMock, { strict: true });
 
-  expect(machine.getState()).toEqual({ state: 'Off' });
-  machine.dispatch({ action: 'TurnOff' });
-  expect(consoleErrorSpy).toHaveBeenCalledWith(`[Stachine] Action TurnOff is not allowed in state Off`);
-  expect(consoleWarnSpy).not.toHaveBeenCalled();
+  expect(machine.getState()).toEqual({ state: "Off" });
+  machine.dispatch({ action: "TurnOff" });
+  expect(consoleMock.error).toHaveBeenCalledWith(
+    `[Stachine] Action TurnOff is not allowed in state Off`,
+  );
+  expect(consoleMock.warn).not.toHaveBeenCalled();
 });
 
-test('returning previous state should not call state listener', () => {
-  type State = { state: 'On' } | { state: 'Off' } | { state: 'Error' };
-  type Action = { action: 'TurnOn' } | { action: 'TurnOff' } | { action: 'Toggle' } | { action: 'Noop' };
+Deno.test("returning previous state should not call state listener", () => {
+  type State = { state: "On" } | { state: "Off" } | { state: "Error" };
+  type Action = { action: "TurnOn" } | { action: "TurnOff" } | {
+    action: "Toggle";
+  } | { action: "Noop" };
 
-  const machine = Stachine<State, Action>({
-    initialState: { state: 'Off' },
-    createErrorState: () => ({ state: 'Error' }),
+  const machine = createStachine<State, Action>({
+    initialState: { state: "Off" },
+    createErrorState: () => ({ state: "Error" }),
     states: {
       On: {
         actions: {
           Noop: ({ state }) => state,
-          Toggle: () => ({ state: 'Off' }),
-          TurnOff: () => ({ state: 'Off' }),
+          Toggle: () => ({ state: "Off" }),
+          TurnOff: () => ({ state: "Off" }),
         },
       },
       Off: {
         actions: {
           Noop: ({ state }) => state,
-          Toggle: () => ({ state: 'On' }),
-          TurnOn: () => ({ state: 'On' }),
+          Toggle: () => ({ state: "On" }),
+          TurnOn: () => ({ state: "On" }),
         },
       },
       Error: {},
     },
   });
 
-  const onStateChange = vi.fn();
+  const onStateChange = fnBase();
 
   machine.subscribe(onStateChange);
-  expect(machine.getState()).toEqual({ state: 'Off' });
-  machine.dispatch({ action: 'Toggle' });
-  expect(onStateChange).toHaveBeenCalledWith({ state: 'On' });
-  onStateChange.mockClear();
-  machine.dispatch({ action: 'Noop' });
-  expect(onStateChange).not.toHaveBeenCalled();
+  expect(machine.getState()).toEqual({ state: "Off" });
+  machine.dispatch({ action: "Toggle" });
+  expect(onStateChange).toHaveBeenCalledWith({ state: "On" });
+  expect(onStateChange).toHaveBeenCalledTimes(1);
+  machine.dispatch({ action: "Noop" });
+  expect(onStateChange).toHaveBeenCalledTimes(1);
 });
 
-test('destroy twice does nothing', () => {
-  const machine = createBooleanMachine();
+Deno.test("destroy twice does nothing", () => {
+  const consoleMock = createMockConsole();
+  const machine = createBooleanMachine(consoleMock);
 
-  expect(machine.getState()).toEqual({ state: 'Off' });
-  machine.dispatch({ action: 'Toggle' });
-  expect(machine.getState()).toEqual({ state: 'On' });
+  expect(machine.getState()).toEqual({ state: "Off" });
+  machine.dispatch({ action: "Toggle" });
+  expect(machine.getState()).toEqual({ state: "On" });
   machine.destroy();
   expect(() => machine.destroy()).not.toThrow();
 });
 
-test('destroy twice warn', () => {
-  const machine = createBooleanMachine();
+Deno.test("destroy twice warn", () => {
+  const consoleMock = createMockConsole();
+  const machine = createBooleanMachine(consoleMock);
 
-  expect(machine.getState()).toEqual({ state: 'Off' });
-  machine.dispatch({ action: 'Toggle' });
-  expect(machine.getState()).toEqual({ state: 'On' });
+  expect(machine.getState()).toEqual({ state: "Off" });
+  machine.dispatch({ action: "Toggle" });
+  expect(machine.getState()).toEqual({ state: "On" });
   machine.destroy();
-  expect(consoleWarnSpy).not.toHaveBeenCalled();
+  expect(consoleMock.warn).not.toHaveBeenCalled();
   machine.destroy();
-  expect(consoleWarnSpy).toHaveBeenCalledWith('[Stachine] Calling .destroy on an already destroyed machine is a no-op');
+  expect(consoleMock.warn).toHaveBeenCalledWith(
+    "[Stachine] Calling .destroy on an already destroyed machine is a no-op",
+  );
 });
 
-test('run effect on initial state', () => {
-  type State = { state: 'Home' } | { state: 'Error' };
+Deno.test("run effect on initial state", () => {
+  type State = { state: "Home" } | { state: "Error" };
   type Action = never;
 
-  const effect = vi.fn();
+  const effect = fnBase();
 
-  const machine = Stachine<State, Action>({
-    initialState: { state: 'Home' },
-    createErrorState: () => ({ state: 'Error' }),
+  const machine = createStachine<State, Action>({
+    initialState: { state: "Home" },
+    createErrorState: () => ({ state: "Error" }),
     states: { Home: { effect }, Error: {} },
   });
 
-  expect(machine.getState()).toEqual({ state: 'Home' });
+  expect(machine.getState()).toEqual({ state: "Home" });
   expect(effect).toHaveBeenCalled();
   machine.destroy();
 });
 
-test('run effect with cleanup on initial state', () => {
-  type State = { state: 'Home' } | { state: 'Error' };
+Deno.test("run effect with cleanup on initial state", () => {
+  type State = { state: "Home" } | { state: "Error" };
   type Action = never;
 
-  const effectCleanup = vi.fn();
-  const effect = vi.fn(() => effectCleanup);
+  const effectCleanup = fnBase();
+  const effect = fn(() => effectCleanup) as () => () => void;
 
-  const machine = Stachine<State, Action>({
-    initialState: { state: 'Home' },
+  const machine = createStachine<State, Action>({
+    initialState: { state: "Home" },
     states: { Home: { effect }, Error: {} },
-    createErrorState: () => ({ state: 'Error' }),
+    createErrorState: () => ({ state: "Error" }),
   });
 
-  expect(machine.getState()).toEqual({ state: 'Home' });
+  expect(machine.getState()).toEqual({ state: "Home" });
   expect(effect).toHaveBeenCalled();
   expect(effectCleanup).not.toHaveBeenCalled();
   machine.destroy();
   expect(effectCleanup).toHaveBeenCalled();
 });
 
-test('run effect on state', () => {
-  type State = { state: 'Home' } | { state: 'Work' } | { state: 'Error' };
-  type Action = { action: 'Commute' };
+Deno.test("run effect on state", () => {
+  type State = { state: "Home" } | { state: "Work" } | { state: "Error" };
+  type Action = { action: "Commute" };
 
-  const effect = vi.fn();
+  const effect = fnBase();
 
-  const machine = Stachine<State, Action>({
-    initialState: { state: 'Home' },
-    createErrorState: () => ({ state: 'Error' }),
+  const machine = createStachine<State, Action>({
+    initialState: { state: "Home" },
+    createErrorState: () => ({ state: "Error" }),
     states: {
-      Home: { actions: { Commute: () => ({ state: 'Work' }) } },
+      Home: { actions: { Commute: () => ({ state: "Work" }) } },
       Work: { effect },
       Error: {},
     },
   });
 
-  expect(machine.getState()).toEqual({ state: 'Home' });
+  expect(machine.getState()).toEqual({ state: "Home" });
   expect(effect).not.toHaveBeenCalled();
-  machine.dispatch({ action: 'Commute' });
-  expect(machine.getState()).toEqual({ state: 'Work' });
+  machine.dispatch({ action: "Commute" });
+  expect(machine.getState()).toEqual({ state: "Work" });
   expect(effect).toHaveBeenCalled();
 });
 
-test('cleanup effect on state', () => {
-  type State = { state: 'Home' } | { state: 'Work' } | { state: 'Error' };
-  type Action = { action: 'Commute' };
+Deno.test("cleanup effect on state", () => {
+  type State = { state: "Home" } | { state: "Work" } | { state: "Error" };
+  type Action = { action: "Commute" };
 
-  const effectCleanup = vi.fn();
-  const effect = vi.fn(() => effectCleanup);
+  const effectCleanup = fnBase();
+  const effect = fn(() => effectCleanup) as () => () => void;
 
-  const machine = Stachine<State, Action>({
-    initialState: { state: 'Home' },
-    createErrorState: () => ({ state: 'Error' }),
+  const machine = createStachine<State, Action>({
+    initialState: { state: "Home" },
+    createErrorState: () => ({ state: "Error" }),
     states: {
-      Home: { actions: { Commute: () => ({ state: 'Work' }) } },
-      Work: { effect, actions: { Commute: () => ({ state: 'Home' }) } },
+      Home: { actions: { Commute: () => ({ state: "Work" }) } },
+      Work: { effect, actions: { Commute: () => ({ state: "Home" }) } },
       Error: {},
     },
   });
 
-  expect(machine.getState()).toEqual({ state: 'Home' });
+  expect(machine.getState()).toEqual({ state: "Home" });
   expect(effect).not.toHaveBeenCalled();
   expect(effectCleanup).not.toHaveBeenCalled();
-  machine.dispatch({ action: 'Commute' });
-  expect(machine.getState()).toEqual({ state: 'Work' });
+  machine.dispatch({ action: "Commute" });
+  expect(machine.getState()).toEqual({ state: "Work" });
   expect(effect).toHaveBeenCalled();
   expect(effectCleanup).not.toHaveBeenCalled();
-  machine.dispatch({ action: 'Commute' });
+  machine.dispatch({ action: "Commute" });
   expect(effectCleanup).toHaveBeenCalled();
 });
 
-test('run cleanup and effect when transition to same state with rerunEffect', () => {
-  type State = { state: 'Main' } | { state: 'Error' };
-  type Action = { action: 'Rerun' } | { action: 'SameRef' } | { action: 'Same' };
+Deno.test("run cleanup and effect when transition to same state with rerunEffect", () => {
+  type State = { state: "Main" } | { state: "Error" };
+  type Action = { action: "Rerun" } | { action: "SameRef" } | {
+    action: "Same";
+  };
 
-  const effectCleanup = vi.fn();
-  const effect = vi.fn(() => effectCleanup);
+  const effectCleanup = fnBase();
+  const effect = fn(() => effectCleanup) as () => () => void;
 
-  const machine = Stachine<State, Action>({
-    initialState: { state: 'Main' },
-    createErrorState: () => ({ state: 'Error' }),
+  const machine = createStachine<State, Action>({
+    initialState: { state: "Main" },
+    createErrorState: () => ({ state: "Error" }),
     states: {
       Main: {
         effect,
         actions: {
           Rerun: ({ rerunEffect, state }) => rerunEffect({ ...state }),
           SameRef: ({ state }) => state,
-          Same: () => ({ state: 'Main' }),
+          Same: () => ({ state: "Main" }),
         },
       },
       Error: {},
@@ -378,25 +402,25 @@ test('run cleanup and effect when transition to same state with rerunEffect', ()
   });
 
   const state1 = machine.getState();
-  expect(machine.getState()).toEqual({ state: 'Main' });
+  expect(machine.getState()).toEqual({ state: "Main" });
   expect(effect).toHaveBeenCalledTimes(1);
   expect(effectCleanup).not.toHaveBeenCalled();
 
-  machine.dispatch({ action: 'SameRef' });
+  machine.dispatch({ action: "SameRef" });
   const state2 = machine.getState();
   expect(state2).toEqual(state1);
   expect(state2).toBe(state1);
   expect(effect).toHaveBeenCalledTimes(1);
   expect(effectCleanup).not.toHaveBeenCalled();
 
-  machine.dispatch({ action: 'Same' });
+  machine.dispatch({ action: "Same" });
   const state3 = machine.getState();
   expect(state3).toEqual(state2);
   expect(state3).not.toBe(state2);
   expect(effect).toHaveBeenCalledTimes(1);
   expect(effectCleanup).not.toHaveBeenCalled();
 
-  machine.dispatch({ action: 'Rerun' });
+  machine.dispatch({ action: "Rerun" });
   const state4 = machine.getState();
   expect(state4).toEqual(state3);
   expect(state4).not.toBe(state3);
@@ -404,145 +428,167 @@ test('run cleanup and effect when transition to same state with rerunEffect', ()
   expect(effectCleanup).toHaveBeenCalledTimes(1);
 });
 
-test('setting false as a transition should be the same as not setting it', () => {
-  type State = { state: 'Home' } | { state: 'Work' } | { state: 'Error' };
-  type Action = { action: 'Commute' } | { action: 'Invalid' };
+Deno.test("setting false as a transition should be the same as not setting it", () => {
+  type State = { state: "Home" } | { state: "Work" } | { state: "Error" };
+  type Action = { action: "Commute" } | { action: "Invalid" };
 
-  const machine = Stachine<State, Action>({
-    initialState: { state: 'Home' },
-    createErrorState: () => ({ state: 'Error' }),
+  const consoleMock = createMockConsole();
+  const machine = createStachine<State, Action>({
+    initialState: { state: "Home" },
+    createErrorState: () => ({ state: "Error" }),
     strict: true,
+    console: consoleMock,
     states: {
       Home: {
         actions: {
-          Commute: () => ({ state: 'Work' }),
+          Commute: () => ({ state: "Work" }),
           Invalid: false,
         },
       },
       Work: {
         actions: {
-          Commute: () => ({ state: 'Home' }),
+          Commute: () => ({ state: "Home" }),
         },
       },
       Error: {},
     },
   });
 
-  expect(machine.getState()).toEqual({ state: 'Home' });
-  machine.dispatch({ action: 'Invalid' });
-  expect(machine.getState()).toEqual({ state: 'Home' });
-  expect(consoleErrorSpy).toHaveBeenCalledWith(`[Stachine] Action Invalid is not allowed in state Home`);
-  machine.dispatch({ action: 'Commute' });
-  expect(machine.getState()).toEqual({ state: 'Work' });
-  consoleErrorSpy.mockClear();
-  machine.dispatch({ action: 'Invalid' });
-  expect(machine.getState()).toEqual({ state: 'Work' });
-  expect(consoleErrorSpy).toHaveBeenCalledWith(`[Stachine] Action Invalid is not allowed in state Work`);
+  expect(machine.getState()).toEqual({ state: "Home" });
+  machine.dispatch({ action: "Invalid" });
+  expect(machine.getState()).toEqual({ state: "Home" });
+  expect(consoleMock.error).toHaveBeenCalledWith(
+    `[Stachine] Action Invalid is not allowed in state Home`,
+  );
+  expect(consoleMock.error).toHaveBeenCalledWith({
+    action: { action: "Invalid" },
+    state: { state: "Home" },
+  });
+  expect(consoleMock.error).toHaveBeenCalledTimes(2);
+  machine.dispatch({ action: "Commute" });
+  expect(machine.getState()).toEqual({ state: "Work" });
+  machine.dispatch({ action: "Invalid" });
+  expect(machine.getState()).toEqual({ state: "Work" });
+  expect(consoleMock.error).toHaveBeenCalledWith(
+    `[Stachine] Action Invalid is not allowed in state Work`,
+  );
+  expect(consoleMock.error).toHaveBeenCalledTimes(4);
 });
 
-test('setting debug should add a prefix to error messages', () => {
-  type State = { state: 'Home' } | { state: 'Error' };
-  type Action = { action: 'Invalid' };
+Deno.test("setting debug should add a prefix to error messages", () => {
+  type State = { state: "Home" } | { state: "Error" };
+  type Action = { action: "Invalid" };
 
-  const machine = Stachine<State, Action>({
-    initialState: { state: 'Home' },
-    createErrorState: () => ({ state: 'Error' }),
+  const consoleMock = createMockConsole();
+  const machine = createStachine<State, Action>({
+    initialState: { state: "Home" },
+    createErrorState: () => ({ state: "Error" }),
     strict: true,
-    debug: 'Debug',
+    debug: "Debug",
+    console: consoleMock,
     states: { Home: { actions: { Invalid: false } }, Error: {} },
   });
 
-  expect(machine.getState()).toEqual({ state: 'Home' });
-  machine.dispatch({ action: 'Invalid' });
-  expect(machine.getState()).toEqual({ state: 'Home' });
-  expect(consoleErrorSpy).toHaveBeenCalledWith(`[Debug] Action Invalid is not allowed in state Home`);
+  expect(machine.getState()).toEqual({ state: "Home" });
+  machine.dispatch({ action: "Invalid" });
+  expect(machine.getState()).toEqual({ state: "Home" });
+  expect(consoleMock.error).toHaveBeenCalledWith(
+    `[Debug] Action Invalid is not allowed in state Home`,
+  );
 });
 
-test('setting debug should add a prefix to warn messages', () => {
-  type State = { state: 'Home' } | { state: 'Error' };
-  type Action = { action: 'Error' };
+Deno.test("setting debug should add a prefix to warn messages", () => {
+  type State = { state: "Home" } | { state: "Error" };
+  type Action = { action: "Error" };
 
-  const machine = Stachine<State, Action>({
-    initialState: { state: 'Home' },
-    createErrorState: () => ({ state: 'Error' }),
+  const consoleMock = createMockConsole();
+  const machine = createStachine<State, Action>({
+    initialState: { state: "Home" },
+    createErrorState: () => ({ state: "Error" }),
     strict: false,
-    debug: 'Debug',
+    debug: "Debug",
+    console: consoleMock,
     states: { Home: {}, Error: {} },
   });
 
-  expect(machine.getState()).toEqual({ state: 'Home' });
+  expect(machine.getState()).toEqual({ state: "Home" });
   machine.destroy();
   machine.destroy();
-  expect(consoleWarnSpy).toHaveBeenCalledWith(`[Debug] Calling .destroy on an already destroyed machine is a no-op`);
+  expect(consoleMock.warn).toHaveBeenCalledWith(
+    `[Debug] Calling .destroy on an already destroyed machine is a no-op`,
+  );
 });
 
-test('calling Machine.allowed should check if an action is allowed in the current state', () => {
-  const machine = createHomeMachine();
+Deno.test("calling Machine.allowed should check if an action is allowed in the current state", () => {
+  const consoleMock = createMockConsole();
+  const machine = createHomeMachine(consoleMock);
 
-  expect(machine.getState()).toEqual({ state: 'Home' });
-  expect(machine.allowed({ action: 'Commute' })).toBe(true);
-  expect(machine.allowed({ action: 'Sleep' })).toBe(true);
-  expect(machine.allowed({ action: 'Wake' })).toBe(false);
+  expect(machine.getState()).toEqual({ state: "Home" });
+  expect(machine.allowed({ action: "Commute" })).toBe(true);
+  expect(machine.allowed({ action: "Sleep" })).toBe(true);
+  expect(machine.allowed({ action: "Wake" })).toBe(false);
 
-  machine.dispatch({ action: 'Commute' });
-  expect(machine.getState()).toEqual({ state: 'Work' });
-  expect(machine.allowed({ action: 'Commute' })).toBe(true);
-  expect(machine.allowed({ action: 'Sleep' })).toBe(false);
-  expect(machine.allowed({ action: 'Wake' })).toBe(false);
+  machine.dispatch({ action: "Commute" });
+  expect(machine.getState()).toEqual({ state: "Work" });
+  expect(machine.allowed({ action: "Commute" })).toBe(true);
+  expect(machine.allowed({ action: "Sleep" })).toBe(false);
+  expect(machine.allowed({ action: "Wake" })).toBe(false);
 });
 
-test('reaction should run on state', () => {
-  type State = { state: 'Main' } | { state: 'Error' };
-  type Action = { action: 'SameState' } | { action: 'SameRef' };
+Deno.test("reaction should run on state", () => {
+  type State = { state: "Main" } | { state: "Error" };
+  type Action = { action: "SameState" } | { action: "SameRef" };
 
-  const reaction = vi.fn();
+  const reaction = fnBase();
 
-  const machine = Stachine<State, Action>({
-    initialState: { state: 'Main' },
+  const machine = createStachine<State, Action>({
+    initialState: { state: "Main" },
     states: {
       Main: {
         reaction,
         actions: {
           SameRef: ({ state }) => state,
-          SameState: () => ({ state: 'Main' }),
+          SameState: () => ({ state: "Main" }),
         },
       },
       Error: {},
     },
-    createErrorState: () => ({ state: 'Error' }),
+    createErrorState: () => ({ state: "Error" }),
   });
 
   expect(reaction).toHaveBeenCalledTimes(1);
-  machine.dispatch({ action: 'SameRef' });
+  machine.dispatch({ action: "SameRef" });
   expect(reaction).toHaveBeenCalledTimes(1);
-  machine.dispatch({ action: 'SameState' });
+  machine.dispatch({ action: "SameState" });
   expect(reaction).toHaveBeenCalledTimes(2);
 });
 
-test('dispatch in reaction should not emit the intermediate state', () => {
-  type State = { state: 'Init' } | { state: 'Step1' } | { state: 'Step2' } | { state: 'Error' };
-  type Action = { action: 'Next' };
+Deno.test("dispatch in reaction should not emit the intermediate state", () => {
+  type State = { state: "Init" } | { state: "Step1" } | { state: "Step2" } | {
+    state: "Error";
+  };
+  type Action = { action: "Next" };
 
-  const step1Effect = vi.fn();
-  const step2Effect = vi.fn();
+  const step1Effect = fnBase();
+  const step2Effect = fnBase();
 
-  const machine = Stachine<State, Action>({
-    createErrorState: () => ({ state: 'Error' }),
-    initialState: { state: 'Init' },
+  const machine = createStachine<State, Action>({
+    createErrorState: () => ({ state: "Error" }),
+    initialState: { state: "Init" },
     states: {
       Error: {},
       Init: {
         actions: {
-          Next: () => ({ state: 'Step1' }),
+          Next: () => ({ state: "Step1" }),
         },
       },
       Step1: {
         reaction: ({ dispatch }) => {
-          dispatch({ action: 'Next' });
+          dispatch({ action: "Next" });
         },
         effect: step1Effect,
         actions: {
-          Next: () => ({ state: 'Step2' }),
+          Next: () => ({ state: "Step2" }),
         },
       },
       Step2: {
@@ -551,28 +597,28 @@ test('dispatch in reaction should not emit the intermediate state', () => {
     },
   });
 
-  const onEmit = vi.fn();
+  const onEmit = fnBase();
   machine.subscribe(onEmit);
 
-  machine.dispatch({ action: 'Next' });
+  machine.dispatch({ action: "Next" });
   expect(onEmit).toHaveBeenCalledTimes(1);
-  expect(onEmit).toHaveBeenCalledWith({ state: 'Step2' });
-  expect(onEmit).not.toHaveBeenCalledWith({ state: 'Step1' });
+  expect(onEmit).toHaveBeenCalledWith({ state: "Step2" });
+  expect(onEmit).not.toHaveBeenCalledWith({ state: "Step1" });
   expect(step1Effect).not.toHaveBeenCalled();
   expect(step2Effect).toHaveBeenCalled();
 });
 
-test('dispatch in transition should throw', () => {
-  type State = { state: 'Main' } | { state: 'Error' };
-  type Action = { action: 'Next' };
+Deno.test("dispatch in transition should throw", () => {
+  type State = { state: "Main" } | { state: "Error" };
+  type Action = { action: "Next" };
 
-  const machine = Stachine<State, Action>({
-    initialState: { state: 'Main' },
+  const machine = createStachine<State, Action>({
+    initialState: { state: "Main" },
     states: {
       Main: {
         actions: {
           Next: ({ state }) => {
-            machine.dispatch({ action: 'Next' });
+            machine.dispatch({ action: "Next" });
             return state;
           },
         },
@@ -584,7 +630,7 @@ test('dispatch in transition should throw', () => {
     },
   });
 
-  expect(() => machine.dispatch({ action: 'Next' })).toThrowError(
-    'Cannot dispatch in a transition (in transition Main -> Next)',
+  expect(() => machine.dispatch({ action: "Next" })).toThrow(
+    "Cannot dispatch in a transition (in transition Main -> Next)",
   );
 });

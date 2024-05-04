@@ -1,35 +1,44 @@
-import type { ConfigGlobalEffect } from '../src/mod';
-import { Stachine } from '../src/mod';
+import {
+  createStachine,
+  type TConfigGlobalEffect,
+  type TConsole,
+} from "../mod.ts";
 
-type BoolState = { state: 'On' } | { state: 'Off' } | { state: 'Error' };
-type BoolAction = { action: 'TurnOn' } | { action: 'TurnOff' } | { action: 'Toggle' };
+type BoolState = { state: "On" } | { state: "Off" } | { state: "Error" };
+type BoolAction = { action: "TurnOn" } | { action: "TurnOff" } | {
+  action: "Toggle";
+};
 
-export function createBooleanMachine({
-  debug,
-  strict,
-  globalEffect,
-}: {
-  debug?: string;
-  strict?: boolean;
-  globalEffect?: ConfigGlobalEffect<BoolState, BoolAction>;
-} = {}) {
-  const machine = Stachine<BoolState, BoolAction>({
-    initialState: { state: 'Off' },
+export function createBooleanMachine(
+  console: TConsole,
+  {
     debug,
     strict,
-    createErrorState: () => ({ state: 'Error' }),
+    globalEffect,
+  }: {
+    debug?: string;
+    strict?: boolean;
+    globalEffect?: TConfigGlobalEffect<BoolState, BoolAction>;
+  } = {},
+) {
+  const machine = createStachine<BoolState, BoolAction>({
+    initialState: { state: "Off" },
+    debug,
+    console,
+    strict,
+    createErrorState: () => ({ state: "Error" }),
     effect: globalEffect,
     states: {
       On: {
         actions: {
-          Toggle: () => ({ state: 'Off' }),
-          TurnOff: () => ({ state: 'Off' }),
+          Toggle: () => ({ state: "Off" }),
+          TurnOff: () => ({ state: "Off" }),
         },
       },
       Off: {
         actions: {
-          Toggle: () => ({ state: 'On' }),
-          TurnOn: () => ({ state: 'On' }),
+          Toggle: () => ({ state: "On" }),
+          TurnOn: () => ({ state: "On" }),
         },
       },
       Error: {},
@@ -39,18 +48,31 @@ export function createBooleanMachine({
   return machine;
 }
 
-type HomeState = { state: 'Home' } | { state: 'Bed' } | { state: 'Work' } | { state: 'Error' };
-type HomeAction = { action: 'Commute' } | { action: 'Wake' } | { action: 'Sleep' };
+type HomeState = { state: "Home" } | { state: "Bed" } | { state: "Work" } | {
+  state: "Error";
+};
+type HomeAction = { action: "Commute" } | { action: "Wake" } | {
+  action: "Sleep";
+};
 
-export function createHomeMachine({ debug }: { debug?: string } = {}) {
-  const machine = Stachine<HomeState, HomeAction>({
-    initialState: { state: 'Home' },
+export function createHomeMachine(
+  console: TConsole,
+  { debug }: { debug?: string } = {},
+) {
+  const machine = createStachine<HomeState, HomeAction>({
+    initialState: { state: "Home" },
     debug,
-    createErrorState: () => ({ state: 'Error' }),
+    console,
+    createErrorState: () => ({ state: "Error" }),
     states: {
-      Home: { actions: { Commute: () => ({ state: 'Work' }), Sleep: () => ({ state: 'Bed' }) } },
-      Work: { actions: { Commute: () => ({ state: 'Home' }) } },
-      Bed: { actions: { Wake: () => ({ state: 'Home' }) } },
+      Home: {
+        actions: {
+          Commute: () => ({ state: "Work" }),
+          Sleep: () => ({ state: "Bed" }),
+        },
+      },
+      Work: { actions: { Commute: () => ({ state: "Home" }) } },
+      Bed: { actions: { Wake: () => ({ state: "Home" }) } },
       Error: {},
     },
   });
