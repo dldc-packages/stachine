@@ -5,9 +5,12 @@ import {
 } from "../mod.ts";
 
 type BoolState = { state: "On" } | { state: "Off" } | { state: "Error" };
-type BoolAction = { action: "TurnOn" } | { action: "TurnOff" } | {
-  action: "Toggle";
-};
+type BoolAction =
+  | { action: "TurnOn" }
+  | { action: "TurnOff" }
+  | {
+    action: "Toggle";
+  };
 
 export function createBooleanMachine(
   console: TConsole,
@@ -48,12 +51,19 @@ export function createBooleanMachine(
   return machine;
 }
 
-type HomeState = { state: "Home" } | { state: "Bed" } | { state: "Work" } | {
-  state: "Error";
-};
-type HomeAction = { action: "Commute" } | { action: "Wake" } | {
-  action: "Sleep";
-};
+type HomeState =
+  | { state: "Home" }
+  | { state: "Bed" }
+  | { state: "Work" }
+  | {
+    state: "Error";
+  };
+type HomeAction =
+  | { action: "Commute" }
+  | { action: "Wake" }
+  | {
+    action: "Sleep";
+  };
 
 export function createHomeMachine(
   console: TConsole,

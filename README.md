@@ -3,7 +3,7 @@
 > A TypeScript state machine with events and effects
 
 ```
-npm install @dldc/stachine
+deno add @dldc/stachine
 ```
 
 ## Gist
