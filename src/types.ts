@@ -10,7 +10,7 @@ export type TDispatch<Action extends TActionBase> = (action: Action) => void;
 
 export type TEffectParams<
   CurrentState extends TStateBase,
-  Action extends TActionBase
+  Action extends TActionBase,
 > = {
   state: CurrentState;
   dispatch: TDispatch<Action>;
@@ -18,12 +18,12 @@ export type TEffectParams<
 
 export type TEffect<
   CurrentState extends TStateBase,
-  Action extends TActionBase
+  Action extends TActionBase,
 > = (params: TEffectParams<CurrentState, Action>) => TCleanup | void;
 
 export type TReactionParams<
   CurrentState extends TStateBase,
-  Action extends TActionBase
+  Action extends TActionBase,
 > = {
   state: CurrentState;
   dispatch: TDispatch<Action>;
@@ -31,19 +31,19 @@ export type TReactionParams<
 
 export type TReaction<
   CurrentState extends TStateBase,
-  Action extends TActionBase
+  Action extends TActionBase,
 > = (params: TReactionParams<CurrentState, Action>) => void;
 
 export type TStateActionConfig<
   CurrentState extends TStateBase,
   CurrentAction extends TActionBase,
-  State extends TStateBase
+  State extends TStateBase,
 > = false | TTransition<CurrentState, CurrentAction, State>;
 
 export type TStateConfigActions<
   CurrentState extends TStateBase,
   State extends TStateBase,
-  Action extends TActionBase
+  Action extends TActionBase,
 > = {
   [A in Action["action"]]?: TStateActionConfig<
     CurrentState,
@@ -55,7 +55,7 @@ export type TStateConfigActions<
 export type TStateConfig<
   CurrentState extends TStateBase,
   State extends TStateBase,
-  Action extends TActionBase
+  Action extends TActionBase,
 > = {
   actions?: TStateConfigActions<CurrentState, State, Action>;
   // run when the state is entered (run after the emit)
@@ -69,7 +69,7 @@ export type TStateConfig<
 export type TTransition<
   CurrentState extends TStateBase,
   CurrentAction extends TActionBase,
-  State extends TStateBase
+  State extends TStateBase,
 > = (params: {
   state: CurrentState;
   action: CurrentAction;
@@ -78,7 +78,7 @@ export type TTransition<
 
 export type TGlobalEffectParams<
   States extends TStateBase,
-  Action extends TActionBase
+  Action extends TActionBase,
 > = {
   getState: () => States;
   dispatch: (action: Action) => void;
@@ -86,7 +86,7 @@ export type TGlobalEffectParams<
 
 export type TConfigGlobalEffect<
   States extends TStateBase,
-  Action extends TActionBase
+  Action extends TActionBase,
 > = (params: TGlobalEffectParams<States, Action>) => TCleanup | void;
 
 export interface TConsole {
@@ -121,14 +121,14 @@ export type TConfig<State extends TStateBase, Action extends TActionBase> = {
 
 export type TAllowedResult<
   State extends TStateBase,
-  Action extends TActionBase
+  Action extends TActionBase,
 > =
   | { allowed: false }
   | { allowed: true; transition: TTransition<State, Action, State> };
 
 export type TStatesActionsResolved<
   State extends TStateBase,
-  Action extends TActionBase
+  Action extends TActionBase,
 > = {
   [S in State["state"]]: {
     [A in Action["action"]]?: false | TTransition<State, Action, State>;
@@ -137,7 +137,7 @@ export type TStatesActionsResolved<
 
 export interface TStachine<
   State extends TStateBase,
-  Action extends TActionBase
+  Action extends TActionBase,
 > {
   [IS_STACHINE]: true;
   readonly dispatch: (action: Action) => void;

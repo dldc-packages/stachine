@@ -17,7 +17,7 @@ export function throwMaxRecursiveDispatchReached(limit: number): never {
     {
       kind: "MaxRecursiveDispatchReached",
       limit,
-    }
+    },
   );
 }
 
@@ -27,13 +27,13 @@ export function throwUnexpectedDispatchQueue(queue: TActionBase[]): never {
     {
       kind: "UnexpectedDispatchQueue",
       queue,
-    }
+    },
   );
 }
 
 export function throwDispatchInTransition(
   action: TActionBase,
-  state: TStateBase
+  state: TStateBase,
 ): never {
   return StachineErreurInternal.setAndThrow(
     `Cannot dispatch in a transition (in transition ${state.state} -> ${action.action})`,
@@ -41,6 +41,6 @@ export function throwDispatchInTransition(
       kind: "DispatchInTransition",
       action,
       state,
-    }
+    },
   );
 }

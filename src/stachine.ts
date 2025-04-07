@@ -35,7 +35,7 @@ export function isStachine(maybe: unknown): maybe is TStachine<any, any> {
 
 export function createStachine<
   State extends TStateBase,
-  Action extends TActionBase
+  Action extends TActionBase,
 >({
   initialState,
   states,
@@ -51,13 +51,13 @@ export function createStachine<
   Object.entries(states).forEach((entry) => {
     const [state, stateConfig] = entry as [
       Action["action"],
-      TStateConfig<State, State, Action>
+      TStateConfig<State, State, Action>,
     ];
     statesActionsResolved[state] = {};
     Object.entries(stateConfig.actions || {}).forEach((entry) => {
       const [action, actionConfig] = entry as [
         Action["action"],
-        TStateActionConfig<State, Action, State>
+        TStateActionConfig<State, Action, State>,
       ];
       if (actionConfig === false) {
         statesActionsResolved[state][action] = false;
@@ -136,19 +136,19 @@ export function createStachine<
         if (strict) {
           logError(
             `Action ${action.action} is not allowed in state ${state.state}`,
-            { action, state }
+            { action, state },
           );
         }
         break;
       }
       const transition = allowedRes.transition;
       const nextState = safeTransition(transition, action);
-      forceEffectMap[nextState.state] =
-        forceEffectMap[nextState.state] || hasForceEffect(nextState);
+      forceEffectMap[nextState.state] = forceEffectMap[nextState.state] ||
+        hasForceEffect(nextState);
       if (nextState === state) {
         if (debug) {
           console.groupCollapsed(
-            `[${debug}]: ${prevState.state} + ${action.action} => [SAME_STATE]`
+            `[${debug}]: ${prevState.state} + ${action.action} => [SAME_STATE]`,
           );
           console.info({ state: prevState, action });
           console.groupEnd();
@@ -159,7 +159,7 @@ export function createStachine<
       state = nextState;
       if (debug) {
         console.groupCollapsed(
-          `[${debug}]: ${prevState.state} + ${action.action} => ${nextState.state}`
+          `[${debug}]: ${prevState.state} + ${action.action} => ${nextState.state}`,
         );
         console.info({ prevState, action, state });
         console.groupEnd();
@@ -186,14 +186,14 @@ export function createStachine<
     sub.emit(state);
     // run effect if state type changed or if force effect
     const stateTypeChanged = prevState.state !== state.state;
-    const shouldRunEffect =
-      stateTypeChanged || forceEffectMap[prevState.state] === true;
+    const shouldRunEffect = stateTypeChanged ||
+      forceEffectMap[prevState.state] === true;
     if (shouldRunEffect) {
       if (debug) {
         console.info(
           `[${debug}]: Running effect for state ${state.state} (${
             stateTypeChanged ? "state type changed" : "force effect"
-          })`
+          })`,
         );
       }
       runEffect();
@@ -222,7 +222,7 @@ export function createStachine<
 
   function safeTransition(
     transition: TTransition<State, Action, State>,
-    action: Action
+    action: Action,
   ): State {
     const prevState = state;
     inTransition = true;
@@ -233,7 +233,7 @@ export function createStachine<
     } catch (error) {
       if (debug) {
         console.info(
-          `[${debug}]: ${prevState.state} + ${action.action} => XX ERROR XX`
+          `[${debug}]: ${prevState.state} + ${action.action} => XX ERROR XX`,
         );
       }
       inTransition = false;
@@ -250,7 +250,7 @@ export function createStachine<
 
   function watch(
     callback: TSubscriptionCallback<State>,
-    onUnsubscribe?: TOnUnsubscribed
+    onUnsubscribe?: TOnUnsubscribed,
   ): TUnsubscribe {
     if (checkDestroyed("watch", { state })) {
       return () => {};
@@ -275,7 +275,7 @@ export function createStachine<
     if (sub.isDestroyed()) {
       logWarn(
         `Calling .${action} on an already destroyed machine is a no-op`,
-        infos
+        infos,
       );
       return true;
     }
@@ -297,7 +297,7 @@ export function createStachine<
   function rerunEffect(nextState: State): State {
     if (state === nextState) {
       logWarn(
-        `Calling rerunEffect on the same state is a no-op, use rerunEffect({ ...state }) instead`
+        `Calling rerunEffect on the same state is a no-op, use rerunEffect({ ...state }) instead`,
       );
       return state;
     }
