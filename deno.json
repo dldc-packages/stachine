@@ -1,6 +1,6 @@
 {
   "name": "@dldc/stachine",
-  "version": "4.0.0",
+  "version": "5.0.0",
   "exports": "./mod.ts",
   "imports": {
     "@std/expect": "jsr:@std/expect@^1.0.13",
