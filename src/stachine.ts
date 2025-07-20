@@ -73,13 +73,14 @@ export function createStachine<
   let inTransition = false;
   let state: State = initialState;
   let currentStateCleanup: TCleanup | null = null;
+  let currentStateController: AbortController | null = null;
 
   const globalEffectCleanup = globalEffect?.({ dispatch, getState }) ?? null;
 
-  // Run effect on mount
-  runEffect();
   // Run reaction on mount
   runReaction();
+  // Run effect on mount
+  runEffect();
 
   return {
     [IS_STACHINE]: true,
@@ -124,7 +125,7 @@ export function createStachine<
     }
     isDispatching = true;
     const prevState = state; // prevState is the state of the first dispatch
-    // keep track of the force effect bu state
+    // keep track of the force effect by state
     const forceEffectMap: Record<string, boolean> = {};
     let dispatchQueueSafe = maxRecursiveDispatch + 1; // add one because we don't count the first one
     while (dispatchQueue.length > 0 && dispatchQueueSafe > 0) {
@@ -205,7 +206,26 @@ export function createStachine<
     const effect = states[stateKey].effect;
     runCleanup();
     if (effect) {
-      currentStateCleanup = effect({ state: state as any, dispatch }) ?? null;
+      currentStateController = new AbortController();
+      try {
+        currentStateCleanup = effect({
+          state: state as any,
+          dispatch,
+          signal: currentStateController.signal,
+        }) ?? null;
+      } catch (error) {
+        if (currentStateController.signal.aborted) {
+          currentStateController = null;
+          return;
+        }
+        if (debug) {
+          console.info(`[${debug}]: Error in effect of ${stateKey} (${error})`);
+        }
+        logError(`Error in effect of ${stateKey} (${error})`, {
+          state,
+          action: null,
+        });
+      }
     }
   }
 
@@ -242,6 +262,10 @@ export function createStachine<
   }
 
   function runCleanup() {
+    if (currentStateController) {
+      currentStateController.abort();
+    }
+    currentStateController = null;
     if (currentStateCleanup !== null) {
       currentStateCleanup();
     }

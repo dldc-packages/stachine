@@ -57,15 +57,11 @@ Deno.test("simple machine with listener", () => {
     | { state: "Home" }
     | { state: "Bed" }
     | { state: "Work" }
-    | {
-      state: "Error";
-    };
+    | { state: "Error" };
   type Action =
     | { action: "Commute" }
     | { action: "Wake" }
-    | {
-      action: "Sleep";
-    };
+    | { action: "Sleep" };
 
   const machine = createStachine<State, Action>({
     initialState: { state: "Home" },
@@ -91,65 +87,6 @@ Deno.test("simple machine with listener", () => {
   expect(callback).toHaveBeenCalledWith({ state: "Work" });
   machine.dispatch({ action: "Sleep" });
   expect(callback).toHaveBeenCalledTimes(1);
-});
-
-Deno.test("simple machine with initialState function", () => {
-  type State =
-    | { state: "Home" }
-    | { state: "Bed" }
-    | { state: "Work" }
-    | {
-      state: "Error";
-    };
-  type Action =
-    | { action: "Commute" }
-    | { action: "Wake" }
-    | {
-      action: "Sleep";
-    };
-
-  const machine = createStachine<State, Action>({
-    initialState: { state: "Home" },
-    createErrorState: () => ({ state: "Error" }),
-    states: {
-      Home: {
-        actions: {
-          Commute: () => ({ state: "Work" }),
-          Sleep: () => ({ state: "Bed" }),
-        },
-      },
-      Work: { actions: { Commute: () => ({ state: "Home" }) } },
-      Bed: { actions: { Wake: () => ({ state: "Home" }) } },
-      Error: {},
-    },
-  });
-
-  expect(machine.getState()).toEqual({ state: "Home" });
-  const callback = fnBase();
-  machine.subscribe(callback);
-  machine.dispatch({ action: "Commute" });
-  expect(machine.getState()).toEqual({ state: "Work" });
-  expect(callback).toHaveBeenCalledTimes(1);
-  expect(callback).toHaveBeenCalledWith({ state: "Work" });
-  machine.dispatch({ action: "Sleep" });
-  expect(callback).toHaveBeenCalledTimes(1);
-});
-
-Deno.test("simple machine with object handler", () => {
-  const consoleMock = createMockConsole();
-  const machine = createHomeMachine(consoleMock);
-
-  expect(machine.getState()).toEqual({ state: "Home" });
-  machine.dispatch({ action: "Wake" });
-  expect(machine.getState()).toEqual({ state: "Home" });
-  machine.dispatch({ action: "Commute" });
-  expect(machine.getState()).toEqual({ state: "Work" });
-  machine.dispatch({ action: "Commute" });
-  expect(machine.getState()).toEqual({ state: "Home" });
-  machine.dispatch({ action: "Sleep" });
-  expect(machine.getState()).toEqual({ state: "Bed" });
-  machine.dispatch({ action: "Sleep" });
-  expect(machine.getState()).toEqual({ state: "Bed" });
 });
 
 Deno.test("simple machine with object handler", () => {
@@ -240,9 +177,7 @@ Deno.test("returning previous state should not call state listener", () => {
   type Action =
     | { action: "TurnOn" }
     | { action: "TurnOff" }
-    | {
-      action: "Toggle";
-    }
+    | { action: "Toggle" }
     | { action: "Noop" };
 
   const machine = createStachine<State, Action>({
@@ -278,7 +213,7 @@ Deno.test("returning previous state should not call state listener", () => {
   expect(onStateChange).toHaveBeenCalledTimes(1);
 });
 
-Deno.test("destroy twice does nothing", () => {
+Deno.test("destroy twice does not throw", () => {
   const consoleMock = createMockConsole();
   const machine = createBooleanMachine(consoleMock);
 
@@ -399,9 +334,7 @@ Deno.test(
     type Action =
       | { action: "Rerun" }
       | { action: "SameRef" }
-      | {
-        action: "Same";
-      };
+      | { action: "Same" };
 
     const effectCleanup = fnBase();
     const effect = fn(() => effectCleanup) as () => () => void;
@@ -596,9 +529,8 @@ Deno.test("dispatch in reaction should not emit the intermediate state", () => {
     | { state: "Init" }
     | { state: "Step1" }
     | { state: "Step2" }
-    | {
-      state: "Error";
-    };
+    | { state: "Error" };
+
   type Action = { action: "Next" };
 
   const step1Effect = fnBase();
@@ -665,4 +597,114 @@ Deno.test("dispatch in transition should throw", () => {
   expect(() => machine.dispatch({ action: "Next" })).toThrow(
     "Cannot dispatch in a transition (in transition Main -> Next)",
   );
+});
+
+Deno.test(
+  "When reaction change state the intermediate state should not run effect",
+  () => {
+    type State =
+      | { state: "Init" }
+      | { state: "Step1" }
+      | { state: "Step2" }
+      | { state: "Error" };
+    type Action = { action: "Next" };
+
+    const initEffect = fnBase();
+    const step1Effect = fnBase();
+    const step2Effect = fnBase();
+
+    const machine = createStachine<State, Action>({
+      initialState: { state: "Init" },
+      createErrorState: () => ({ state: "Error" }),
+      states: {
+        Init: {
+          effect: initEffect,
+          actions: {
+            Next: () => ({ state: "Step1" }),
+          },
+        },
+        Step1: {
+          effect: step1Effect,
+          reaction: ({ dispatch }) => {
+            dispatch({ action: "Next" });
+          },
+          actions: {
+            Next: () => ({ state: "Step2" }),
+          },
+        },
+        Step2: {
+          effect: step2Effect,
+        },
+        Error: {},
+      },
+    });
+
+    expect(machine.getState()).toEqual({ state: "Init" });
+    expect(initEffect).toHaveBeenCalled();
+    expect(step1Effect).not.toHaveBeenCalled();
+    expect(step2Effect).not.toHaveBeenCalled();
+
+    machine.dispatch({ action: "Next" });
+    expect(machine.getState()).toEqual({ state: "Step2" });
+    expect(step1Effect).not.toHaveBeenCalled();
+    expect(step2Effect).toHaveBeenCalled();
+  },
+);
+
+Deno.test("Throw in effect should not crash the machine", () => {
+  type State = { state: "Init" } | { state: "Effect" } | { state: "Error" };
+  type Action = { action: "Start" };
+
+  const effect = () => {
+    throw new Error("Error in effect");
+  };
+
+  const machine = createStachine<State, Action>({
+    initialState: { state: "Init" },
+    createErrorState: (error) => ({ state: "Error", error }),
+    states: {
+      Init: {
+        actions: {
+          Start: () => ({ state: "Effect" }),
+        },
+      },
+      Effect: {
+        effect,
+      },
+      Error: {},
+    },
+  });
+
+  expect(machine.getState()).toEqual({ state: "Init" });
+  machine.dispatch({ action: "Start" });
+
+  expect(machine.getState()).toEqual({ state: "Effect" });
+});
+
+Deno.test("Reaction on initial state should not run effect", () => {
+  type State = { state: "Init" } | { state: "Second" } | { state: "Error" };
+  type Action = { action: "Start" };
+
+  const effect = fnBase();
+
+  const machine = createStachine<State, Action>({
+    initialState: { state: "Init" },
+    createErrorState: (error) => ({ state: "Error", error }),
+    states: {
+      Init: {
+        actions: {
+          Start: () => ({ state: "Second" }),
+        },
+        effect,
+        reaction: ({ dispatch }) => {
+          dispatch({ action: "Start" });
+        },
+      },
+      Second: {},
+      Error: {},
+    },
+  });
+
+  expect(machine.getState()).toEqual({ state: "Second" });
+  expect(effect).not.toHaveBeenCalled();
 });

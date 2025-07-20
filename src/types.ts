@@ -12,6 +12,7 @@ export type TEffectParams<
   CurrentState extends TStateBase,
   Action extends TActionBase,
 > = {
+  signal: AbortSignal;
   state: CurrentState;
   dispatch: TDispatch<Action>;
 };
@@ -58,11 +59,15 @@ export type TStateConfig<
   Action extends TActionBase,
 > = {
   actions?: TStateConfigActions<CurrentState, State, Action>;
-  // run when the state is entered (run after the emit)
-  // if the effect returns a cleanup function, it will be called when the state is left
+  /**
+   * Effect run when the state is entered (run after the emit)
+   * if the effect returns a cleanup function, it will be called when the state is left
+   */
   effect?: TEffect<CurrentState, Action>;
-  // run before the store emits the corresponding state (before the emit)
-  // If you dispatch an action in the reaction, the intermediate state will not be emitted
+  /**
+   * Reaction run before the store emits the corresponding state (before the emit)
+   * If you dispatch an action in the reaction, the intermediate state will not be emitted
+   */
   reaction?: TReaction<CurrentState, Action>;
 };
 
@@ -100,8 +105,10 @@ export interface TConsole {
 export type TConfig<State extends TStateBase, Action extends TActionBase> = {
   debug?: string;
   console?: TConsole;
-  // when strict is true, the machine will console.error if the action is not defined in the states
-  // when strict is false, unhandled actions will be ignored
+  /**
+   * When strict is true, the machine will console.error if the action is not defined in the states
+   * When strict is false, unhandled actions will be ignored
+   */
   strict?: boolean;
   initialState: State;
   states: {
@@ -111,11 +118,17 @@ export type TConfig<State extends TStateBase, Action extends TActionBase> = {
       Action
     >;
   };
-  // global effect (will cleanup when the machine is destroyed)
+  /**
+   * Global effect (will cleanup when the machine is destroyed)
+   */
   effect?: TConfigGlobalEffect<State, Action>;
-  // When an error occurs in a transition, we replace the current state with the error state
+  /**
+   * When an error occurs in a transition, we replace the current state with the error state
+   */
   createErrorState: (error: unknown, currentState: State) => State;
-  // max number of recursive dispatches in reaction
+  /**
+   * Max number of recursive dispatches in reaction
+   */
   maxRecursiveDispatch?: number;
 };
 
@@ -144,7 +157,9 @@ export interface TStachine<
   readonly allowed: (action: Action) => boolean;
   readonly getState: () => State;
   readonly subscribe: SubscribeMethod<State>;
-  // same as subscribe but runs the callback immediately with the current state
+  /**
+   * Same as subscribe but runs the callback immediately with the current state
+   */
   readonly watch: SubscribeMethod<State>;
   readonly isState: (...types: ReadonlyArray<State["state"]>) => boolean;
   readonly destroy: () => void;
